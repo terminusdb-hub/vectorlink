@@ -171,12 +171,38 @@ enum Commands {
         directory: String,
         #[arg(short, long, default_value_t = 10000)]
         size: usize,
-        #[arg(short, long)]
-        improve_neighbors: Option<f32>,
-        #[arg(short, long)]
-        promote: bool,
+        #[arg(short, long, default_value_t = 0.01)]
+        threshold: f32,
         #[arg(short, long, default_value_t = 1.0)]
         proportion: f32,
+    },
+    ImproveNeighbors {
+        #[arg(short, long)]
+        commit: String,
+        #[arg(long)]
+        domain: String,
+        #[arg(short, long)]
+        directory: String,
+        #[arg(short, long, default_value_t = 10000)]
+        size: usize,
+        #[arg(short, long, default_value_t = 0.01)]
+        threshold: f32,
+        #[arg(short, long, default_value_t = 1.0)]
+        proportion: f32,
+    },
+    PromoteAtLayer {
+        #[arg(short, long)]
+        commit: String,
+        #[arg(long)]
+        domain: String,
+        #[arg(short, long)]
+        directory: String,
+        #[arg(short, long, default_value_t = 10000)]
+        size: usize,
+        #[arg(short, long, default_value_t)]
+        layer: usize,
+        #[arg(short, long, default_value_t = 0.05)]
+        max_proportion: f32,
     },
     ScanNeighbors {
         #[arg(short, long)]
@@ -435,8 +461,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             domain,
             directory,
             size,
-            improve_neighbors,
-            promote: _promote,
+            threshold,
             proportion,
         } => {
             let dirpath = Path::new(&directory);
@@ -447,16 +472,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, size);
 
-            if let Some(threshold) = improve_neighbors {
-                let mut hnsw: HnswConfiguration =
-                    HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
+            let mut hnsw: HnswConfiguration =
+                HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
+            hnsw.improve_index(threshold, proportion);
 
-                hnsw.improve_neighbors(threshold, proportion);
+            // TODO should write to staging first
+            hnsw.serialize(hnsw_index_path)?;
+        }
 
+        Commands::ImproveNeighbors {
+            commit,
+            domain,
+            directory,
+            size,
+            threshold,
+            proportion,
+        } => {
+            let dirpath = Path::new(&directory);
+            let hnsw_index_path = dbg!(format!(
+                "{}/{}.hnsw",
+                directory,
+                create_index_name(&domain, &commit)
+            ));
+            let store = VectorStore::new(dirpath, size);
+
+            let mut hnsw: HnswConfiguration =
+                HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
+
+            hnsw.improve_neighbors(threshold, proportion);
+
+            // TODO should write to staging first
+            hnsw.serialize(hnsw_index_path)?;
+        }
+        Commands::PromoteAtLayer {
+            commit,
+            domain,
+            directory,
+            size,
+            layer,
+            max_proportion,
+        } => {
+            let dirpath = Path::new(&directory);
+            let hnsw_index_path = dbg!(format!(
+                "{}/{}.hnsw",
+                directory,
+                create_index_name(&domain, &commit)
+            ));
+            let store = VectorStore::new(dirpath, size);
+
+            let mut hnsw: HnswConfiguration =
+                HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
+
+            if hnsw.promote_at_layer(layer, max_proportion) {
+                eprintln!("promoted nodes at layer {layer}");
                 // TODO should write to staging first
                 hnsw.serialize(hnsw_index_path)?;
-            } else {
-                todo!();
             }
         }
         Commands::ScanNeighbors {

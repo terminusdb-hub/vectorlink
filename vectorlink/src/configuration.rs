@@ -161,6 +161,18 @@ impl HnswConfiguration {
         }
     }
 
+    pub fn improve_index(&mut self, threshold: f32, recall: f32) {
+        match self {
+            HnswConfiguration::QuantizedOpenAi(_model, q) => q.improve_index(threshold, recall),
+            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
+                q.improve_index(threshold, recall)
+            }
+            HnswConfiguration::UnquantizedOpenAi(_model, h) => h.improve_index(threshold, recall),
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => q.improve_index(threshold, recall),
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => q.improve_index(threshold, recall),
+        }
+    }
+
     pub fn improve_neighbors(&mut self, threshold: f32, recall: f32) {
         match self {
             HnswConfiguration::QuantizedOpenAi(_model, q) => q.improve_neighbors(threshold, recall),
@@ -175,6 +187,26 @@ impl HnswConfiguration {
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
                 q.improve_neighbors(threshold, recall)
+            }
+        }
+    }
+
+    pub fn promote_at_layer(&mut self, layer_from_top: usize, max_proportion: f32) -> bool {
+        match self {
+            HnswConfiguration::QuantizedOpenAi(_model, q) => {
+                q.promote_at_layer(layer_from_top, max_proportion)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
+                q.promote_at_layer(layer_from_top, max_proportion)
+            }
+            HnswConfiguration::UnquantizedOpenAi(_model, h) => {
+                h.promote_at_layer(layer_from_top, max_proportion)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
+                q.promote_at_layer(layer_from_top, max_proportion)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
+                q.promote_at_layer(layer_from_top, max_proportion)
             }
         }
     }
