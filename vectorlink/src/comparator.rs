@@ -1,3 +1,4 @@
+use half::bf16;
 use parallel_hnsw::pq::{
     CentroidComparatorConstructor, PartialDistance, QuantizedComparatorConstructor,
 };
@@ -183,7 +184,7 @@ impl Serializable for OpenAIComparator {
 }
 
 struct MemoizedPartialDistances {
-    partial_distances: Vec<f32>,
+    partial_distances: Vec<bf16>,
     size: usize,
 }
 
@@ -200,14 +201,18 @@ pub trait DistanceCalculator {
 
 impl MemoizedPartialDistances {
     fn new<T, P: DistanceCalculator<T = T>>(partial_distance_calculator: P, vectors: &[T]) -> Self {
+        eprintln!("constructing memoized");
         let size = vectors.len();
-        let mut partial_distances: Vec<f32> = vec![0.0; size * size];
+        let mut partial_distances: Vec<bf16> = Vec::with_capacity(size * size);
+        unsafe {
+            partial_distances.set_len(size * size);
+        }
         for c in 0..size * size {
             let i = c / size;
             let j = c % size;
-            partial_distances[c] =
-                partial_distance_calculator.partial_distance(&vectors[i], &vectors[j]);
-            //vecmath::euclidean_partial_distance_32(&vectors[i], &vectors[j]);
+            partial_distances[c] = bf16::from_f32(
+                partial_distance_calculator.partial_distance(&vectors[i], &vectors[j]),
+            );
         }
 
         Self {
@@ -216,13 +221,9 @@ impl MemoizedPartialDistances {
         }
     }
 
-    #[allow(dead_code)]
-    fn all_distances(&self) -> &[f32] {
-        &self.partial_distances
-    }
-
     fn partial_distance(&self, i: u16, j: u16) -> f32 {
-        self.partial_distances[(i * self.size as u16 + j) as usize]
+        let distance: bf16 = self.partial_distances[(i * self.size as u16 + j) as usize];
+        distance.to_f32()
     }
 }
 
