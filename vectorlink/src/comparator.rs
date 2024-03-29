@@ -199,17 +199,77 @@ pub trait DistanceCalculator {
     }
 }
 
+// i < j, i != j
+#[inline]
+fn index_to_offset(n: usize, i: usize, j: usize) -> usize {
+    let correction = (i + 2) * (i + 1) / 2;
+    i * n + j - correction
+}
+
+// offset = i*n - (i + 2) * (i + 1) / 2 + j
+//
+
+fn offset_to_index(n: usize, offset: usize) -> (usize, usize) {
+    let i = (((2 * n - 1) as f32 - (((2 * n - 1).pow(2) - 8 * offset) as f32).powf(0.5)) / 2.0)
+        as usize;
+    let j = offset - ((i * (n - 1)) - ((i + 1) * i) / 2) + 1;
+    (i, j)
+}
+
+#[inline]
+fn triangle_lookup_length(n: usize) -> usize {
+    index_to_offset(n, n - 2, n - 1) + 1
+}
+
+#[cfg(test)]
+mod offsettest {
+    use super::*;
+    #[test]
+    fn test_triangle_offsets() {
+        let n = 10;
+        let mut expected_index = 0;
+        for i in 0..n {
+            for j in 0..n {
+                if i < j {
+                    let actual = index_to_offset(n, i, j);
+                    assert_eq!(expected_index, actual);
+                    expected_index += 1;
+                }
+            }
+        }
+        assert_eq!(expected_index, triangle_lookup_length(n));
+    }
+
+    #[test]
+    fn roundtrip() {
+        let n = 10;
+        for i in 0..triangle_lookup_length(n) {
+            let (a, b) = offset_to_index(n, i);
+            let i2 = index_to_offset(n, a, b);
+
+            assert_eq!(i, i2);
+        }
+    }
+}
+
 impl MemoizedPartialDistances {
     fn new<T, P: DistanceCalculator<T = T>>(partial_distance_calculator: P, vectors: &[T]) -> Self {
         eprintln!("constructing memoized");
-        let size = vectors.len();
-        let mut partial_distances: Vec<bf16> = Vec::with_capacity(size * size);
+        let memoized_array_length = triangle_lookup_length(vectors.len());
+        eprintln!(
+            "for size {} we figured {memoized_array_length}",
+            vectors.len()
+        );
+        let mut partial_distances: Vec<bf16> = Vec::with_capacity(memoized_array_length);
         unsafe {
-            partial_distances.set_len(size * size);
+            partial_distances.set_len(memoized_array_length);
         }
-        for c in 0..size * size {
-            let i = c / size;
-            let j = c % size;
+        let size = vectors.len();
+        for c in 0..memoized_array_length {
+            let (i, j) = offset_to_index(size, c);
+            if i > 65535 || j > 65535 {
+                panic!("oh no {i} {j}");
+            }
             partial_distances[c] = bf16::from_f32(
                 partial_distance_calculator.partial_distance(&vectors[i], &vectors[j]),
             );
@@ -222,7 +282,15 @@ impl MemoizedPartialDistances {
     }
 
     fn partial_distance(&self, i: u16, j: u16) -> f32 {
-        let distance: bf16 = self.partial_distances[(i * self.size as u16 + j) as usize];
+        let offset = match i.cmp(&j) {
+            std::cmp::Ordering::Equal => {
+                // Early bail
+                return 0.0;
+            }
+            std::cmp::Ordering::Less => index_to_offset(self.size, i as usize, j as usize),
+            std::cmp::Ordering::Greater => index_to_offset(self.size, j as usize, i as usize),
+        };
+        let distance: bf16 = self.partial_distances[offset];
         distance.to_f32()
     }
 }
