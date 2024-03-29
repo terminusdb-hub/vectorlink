@@ -202,17 +202,32 @@ pub trait DistanceCalculator {
 // i < j, i != j
 #[inline]
 fn index_to_offset(n: usize, i: usize, j: usize) -> usize {
-    let correction = (i + 2) * (i + 1) / 2;
-    i * n + j - correction
+    let i_f64 = i as f64;
+    let j_f64 = j as f64;
+    let n_f64 = n as f64;
+    let correction = (i_f64 + 2.0) * (i_f64 + 1.0) / 2.0;
+    (i_f64 * n_f64 + j_f64 - correction) as usize
 }
 
+fn isqrt(i: usize) -> usize {
+    (i as f64).sqrt().floor() as usize
+}
 // offset = i*n - (i + 2) * (i + 1) / 2 + j
 //
-
 fn offset_to_index(n: usize, offset: usize) -> (usize, usize) {
-    let i = (((2 * n - 1) as f32 - (((2 * n - 1).pow(2) - 8 * offset) as f32).powf(0.5)) / 2.0)
-        as usize;
-    let j = offset - ((i * (n - 1)) - ((i + 1) * i) / 2) + 1;
+    let d = (2 * n - 1).pow(2) - 8 * offset;
+    let i2 = (2 * n - 1) as f64 - (d as f64).sqrt();
+    let i = (i2 / 2.0) as usize;
+    let triangle = (i * (n - 1)) - ((i + 1) * i) / 2;
+    if triangle > offset + 1 {
+        dbg!(isqrt(d));
+        dbg!(2 * n - 1 - isqrt(d));
+        panic!("i: {i}, i2: {i2} n: {n}, offset: {offset}, d: {d}");
+    }
+    let j = offset + 1 - triangle;
+    if j == 18446744073709518852 {
+        panic!("i: {i}, j: {j}, n: {n}, offset: {offset},  d: {d}, trianglet: {triangle}");
+    }
     (i, j)
 }
 
@@ -242,11 +257,25 @@ mod offsettest {
 
     #[test]
     fn roundtrip() {
-        let n = 10;
+        let n = 65535;
         for i in 0..triangle_lookup_length(n) {
             let (a, b) = offset_to_index(n, i);
-            let i2 = index_to_offset(n, a, b);
+            if a >= n {
+                eprintln!("Yikes: a: {a}, b: {b}, n: {n}");
+            }
+            if b >= n {
+                eprintln!("Yikes: a: {a}, b: {b}, n: {n}");
+            }
+            assert!(a < n);
+            assert!(b < n);
 
+            if a == 0 && b == 0 {
+                panic!("Failure at {i}: a: {a}, b: {b}, n: {n}");
+            }
+            let i2 = index_to_offset(n, a, b);
+            if i != i2 {
+                panic!("Failure n: {n}, a: {a}, b: {b}, i: {i}, i2: {i2}");
+            }
             assert_eq!(i, i2);
         }
     }
