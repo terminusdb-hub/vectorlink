@@ -209,9 +209,6 @@ fn index_to_offset(n: usize, i: usize, j: usize) -> usize {
     (i_f64 * n_f64 + j_f64 - correction) as usize
 }
 
-fn isqrt(i: usize) -> usize {
-    (i as f64).sqrt().floor() as usize
-}
 // offset = i*n - (i + 2) * (i + 1) / 2 + j
 //
 fn offset_to_index(n: usize, offset: usize) -> (usize, usize) {
@@ -219,15 +216,7 @@ fn offset_to_index(n: usize, offset: usize) -> (usize, usize) {
     let i2 = (2 * n - 1) as f64 - (d as f64).sqrt();
     let i = (i2 / 2.0) as usize;
     let triangle = (i * (n - 1)) - ((i + 1) * i) / 2;
-    if triangle > offset + 1 {
-        dbg!(isqrt(d));
-        dbg!(2 * n - 1 - isqrt(d));
-        panic!("i: {i}, i2: {i2} n: {n}, offset: {offset}, d: {d}");
-    }
     let j = offset + 1 - triangle;
-    if j == 18446744073709518852 {
-        panic!("i: {i}, j: {j}, n: {n}, offset: {offset},  d: {d}, trianglet: {triangle}");
-    }
     (i, j)
 }
 
