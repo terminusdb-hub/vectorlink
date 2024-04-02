@@ -230,7 +230,7 @@ mod offsettest {
     use super::*;
     #[test]
     fn test_triangle_offsets() {
-        let n = 10;
+        let n = 100;
         let mut expected_index = 0;
         for i in 0..n {
             for j in 0..n {
@@ -266,6 +266,23 @@ mod offsettest {
                 panic!("Failure n: {n}, a: {a}, b: {b}, i: {i}, i2: {i2}");
             }
             assert_eq!(i, i2);
+        }
+    }
+
+    #[test]
+    fn roundtrip_backwards() {
+        let n = 65535;
+        for a in 0..n {
+            for b in 0..n {
+                if a >= b {
+                    continue;
+                }
+                let i = index_to_offset(n, a, b);
+                let (a2, b2) = offset_to_index(n, i);
+                if a2 != a || b2 != b {
+                    panic!("omfg: a: {a}, b: {b}, a2: {a2}, b2: {b2}, i: {i}")
+                }
+            }
         }
     }
 }
