@@ -285,6 +285,41 @@ mod offsettest {
             }
         }
     }
+
+    struct IndexProductDistanceCalculator;
+
+    impl DistanceCalculator for IndexProductDistanceCalculator {
+        type T = usize;
+
+        fn partial_distance(&self, left: &usize, right: &usize) -> f32 {
+            (left * right) as f32
+        }
+
+        fn finalize_partial_distance(&self, distance: f32) -> f32 {
+            distance.sqrt()
+        }
+
+        fn aggregate_partial_distances(&self, distances: &[f32]) -> f32 {
+            distances.iter().sum()
+        }
+    }
+
+    #[test]
+    fn distances_are_mapped_right() {
+        let vecs: Vec<usize> = (0..65536).collect();
+        let distances = MemoizedPartialDistances::new(IndexProductDistanceCalculator, &vecs);
+        for (a, b) in (0..65536).zip(0..65536) {
+            if a == b {
+                continue;
+            }
+            let distance = distances.partial_distance(a as u16, b as u16);
+            let calculated_distance = (a * b) as f32;
+            let error = (distance - calculated_distance).abs();
+            if error > 0.1 {
+                panic!("{a},{b} gave distance {distance} and not {calculated_distance}");
+            }
+        }
+    }
 }
 
 impl MemoizedPartialDistances {
