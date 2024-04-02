@@ -608,14 +608,11 @@ where
 }
 
 impl Serializable for Quantized32Comparator {
-    type Params = ();
+    type Params = Centroid32Comparator;
 
     fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
         std::fs::create_dir_all(&path_buf)?;
-
-        let index_path = path_buf.join("index");
-        self.cc.serialize(index_path)?;
 
         let vector_path = path_buf.join("vectors");
         let mut vector_file = VectorFile::create(vector_path, true)?;
@@ -623,13 +620,8 @@ impl Serializable for Quantized32Comparator {
         Ok(())
     }
 
-    fn deserialize<P: AsRef<Path>>(
-        path: P,
-        _params: Self::Params,
-    ) -> Result<Self, SerializationError> {
+    fn deserialize<P: AsRef<Path>>(path: P, cc: Self::Params) -> Result<Self, SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
-        let index_path = path_buf.join("index");
-        let cc = Centroid32Comparator::deserialize(index_path, ())?;
 
         let vector_path = path_buf.join("vectors");
         let vector_file = VectorFile::open(vector_path, true)?;
@@ -712,14 +704,11 @@ where
 }
 
 impl Serializable for Quantized16Comparator {
-    type Params = ();
+    type Params = Centroid16Comparator;
 
     fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
         std::fs::create_dir_all(&path_buf)?;
-
-        let index_path = path_buf.join("index");
-        self.cc.serialize(index_path)?;
 
         let vector_path = path_buf.join("vectors");
         let mut vector_file = VectorFile::create(vector_path, true)?;
@@ -727,13 +716,8 @@ impl Serializable for Quantized16Comparator {
         Ok(())
     }
 
-    fn deserialize<P: AsRef<Path>>(
-        path: P,
-        _params: Self::Params,
-    ) -> Result<Self, SerializationError> {
+    fn deserialize<P: AsRef<Path>>(path: P, cc: Self::Params) -> Result<Self, SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
-        let index_path = path_buf.join("index");
-        let cc = Centroid16Comparator::deserialize(index_path, ())?;
 
         let vector_path = path_buf.join("vectors");
         let vector_file = VectorFile::open(vector_path, true)?;
@@ -793,14 +777,11 @@ where
 }
 
 impl Serializable for Quantized8Comparator {
-    type Params = ();
+    type Params = Centroid8Comparator;
 
     fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
         std::fs::create_dir_all(&path_buf)?;
-
-        let index_path = path_buf.join("index");
-        self.cc.serialize(index_path)?;
 
         let vector_path = path_buf.join("vectors");
         let mut vector_file = VectorFile::create(vector_path, true)?;
@@ -808,13 +789,8 @@ impl Serializable for Quantized8Comparator {
         Ok(())
     }
 
-    fn deserialize<P: AsRef<Path>>(
-        path: P,
-        _params: Self::Params,
-    ) -> Result<Self, SerializationError> {
+    fn deserialize<P: AsRef<Path>>(path: P, cc: Self::Params) -> Result<Self, SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
-        let index_path = path_buf.join("index");
-        let cc = Centroid8Comparator::deserialize(index_path, ())?;
 
         let vector_path = path_buf.join("vectors");
         let vector_file = VectorFile::open(vector_path, true)?;
@@ -874,14 +850,11 @@ where
 }
 
 impl Serializable for Quantized4Comparator {
-    type Params = ();
+    type Params = Centroid4Comparator;
 
     fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
         std::fs::create_dir_all(&path_buf)?;
-
-        let index_path = path_buf.join("index");
-        self.cc.serialize(index_path)?;
 
         let vector_path = path_buf.join("vectors");
         let mut vector_file = VectorFile::create(vector_path, true)?;
@@ -889,13 +862,8 @@ impl Serializable for Quantized4Comparator {
         Ok(())
     }
 
-    fn deserialize<P: AsRef<Path>>(
-        path: P,
-        _params: Self::Params,
-    ) -> Result<Self, SerializationError> {
+    fn deserialize<P: AsRef<Path>>(path: P, cc: Self::Params) -> Result<Self, SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
-        let index_path = path_buf.join("index");
-        let cc = Centroid4Comparator::deserialize(index_path, ())?;
 
         let vector_path = path_buf.join("vectors");
         let vector_file = VectorFile::open(vector_path, true)?;
