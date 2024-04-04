@@ -25,6 +25,7 @@ use crate::{
         Quantized4Comparator, Quantized8Comparator,
     },
     configuration::HnswConfiguration,
+    domain::Domain,
     indexer::{create_index_name, index_serialization_path},
     openai::{embeddings_for, EmbeddingError, Model},
     server::Operation,
@@ -254,11 +255,32 @@ pub async fn index_using_operations_and_vectors<
             }
         }
     }
+    perform_indexing(
+        domain_obj,
+        offset,
+        i,
+        quantize_hnsw,
+        model,
+        staging_file,
+        final_file,
+    )
+    .await
+}
+
+async fn perform_indexing(
+    domain_obj: Arc<Domain<Embedding>>,
+    offset: u64,
+    count: usize,
+    quantize_hnsw: bool,
+    model: Model,
+    staging_file: PathBuf,
+    final_file: PathBuf,
+) -> Result<(), IndexingError> {
     let comparator = OpenAIComparator::new(
         domain_obj.name().to_string(),
         Arc::new(domain_obj.all_vecs()?),
     );
-    let vecs: Vec<_> = (offset as usize..(offset as usize + i))
+    let vecs: Vec<_> = (offset as usize..(offset as usize + count))
         .map(VectorId)
         .collect();
 
@@ -269,7 +291,7 @@ pub async fn index_using_operations_and_vectors<
             domain_obj.name().to_owned(),
             Arc::new(domain_obj.immutable_file()),
         );
-        let hnsw: QuantizedHnsw<
+        let quantized_hnsw: QuantizedHnsw<
             EMBEDDING_LENGTH,
             CENTROID_16_LENGTH,
             QUANTIZED_16_EMBEDDING_LENGTH,
@@ -277,7 +299,7 @@ pub async fn index_using_operations_and_vectors<
             Quantized16Comparator,
             DiskOpenAIComparator,
         > = QuantizedHnsw::new(number_of_centroids, c);
-        HnswConfiguration::SmallQuantizedOpenAi(model, hnsw)
+        HnswConfiguration::SmallQuantizedOpenAi(model, quantized_hnsw)
     } else {
         let hnsw = Hnsw::generate(comparator, vecs, 24, 48, 12);
         HnswConfiguration::UnquantizedOpenAi(model, hnsw)
@@ -358,4 +380,43 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
         eprintln!("No index built");
     }
     Ok(())
+}
+
+pub async fn index_domain<P: AsRef<Path>>(
+    api_key: &str,
+    model: Model,
+    vectorlink_path: P,
+    domain: &str,
+    commit: &str,
+    size: usize,
+    quantize_hnsw: bool,
+) -> Result<(), IndexingError> {
+    let mut staging_path: PathBuf = vectorlink_path.as_ref().into();
+    staging_path.push(".staging");
+    staging_path.push(&*encode(domain));
+    tokio::fs::create_dir_all(&staging_path).await?;
+
+    let vs_path_buf: PathBuf = vectorlink_path.as_ref().into();
+    let vs: VectorStore = VectorStore::new(&vs_path_buf, size);
+    let domain_obj = vs.get_domain(domain)?;
+
+    let index_name = create_index_name(domain, commit);
+
+    let index_file_name = "index";
+    let staging_file = index_serialization_path(&staging_path, index_file_name);
+
+    let final_file = index_serialization_path(&vectorlink_path, &index_name);
+
+    let vector_count = domain_obj.num_vecs();
+
+    perform_indexing(
+        domain_obj,
+        0,
+        vector_count,
+        quantize_hnsw,
+        model,
+        staging_file,
+        final_file,
+    )
+    .await
 }

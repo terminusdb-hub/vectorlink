@@ -44,6 +44,7 @@ use vecmath::EMBEDDING_LENGTH;
 use rayon::iter::Either;
 use rayon::prelude::*;
 
+use crate::batch::index_domain;
 use crate::utils::{test_quantization, QuantizationStatistics};
 use crate::vecmath::Quantized16Embedding;
 
@@ -87,6 +88,22 @@ enum Commands {
         model: Model,
         #[arg(long)]
         build_index: Option<bool>,
+        #[arg(short, long)]
+        quantize_hnsw: bool,
+    },
+    Index {
+        #[arg(short, long)]
+        key: Option<String>,
+        #[arg(short, long)]
+        commit: String,
+        #[arg(long)]
+        domain: String,
+        #[arg(short, long)]
+        directory: String,
+        #[arg(short, long, default_value_t = 10000)]
+        size: usize,
+        #[arg(short, long, value_enum, default_value_t = Model::Ada2)]
+        model: Model,
         #[arg(short, long)]
         quantize_hnsw: bool,
     },
@@ -392,6 +409,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 &commit,
                 size,
                 build_index.unwrap_or(true),
+                quantize_hnsw,
+            )
+            .await
+            .unwrap()
+        }
+        Commands::Index {
+            key,
+            domain,
+            model,
+            directory,
+            size,
+            commit,
+            quantize_hnsw,
+        } => {
+            eprintln!("starting indexing");
+            let key = key_or_env(key);
+            index_domain(
+                &key,
+                model,
+                directory,
+                &domain,
+                &commit,
+                size,
                 quantize_hnsw,
             )
             .await
