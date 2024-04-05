@@ -4,6 +4,9 @@ use parallel_hnsw::pq::{
 };
 use rand::distributions::Uniform;
 use rand::{thread_rng, Rng};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs::OpenOptions;
@@ -323,7 +326,10 @@ mod offsettest {
 }
 
 impl MemoizedPartialDistances {
-    fn new<T, P: DistanceCalculator<T = T>>(partial_distance_calculator: P, vectors: &[T]) -> Self {
+    fn new<T: Sync, P: DistanceCalculator<T = T> + Sync>(
+        partial_distance_calculator: P,
+        vectors: &[T],
+    ) -> Self {
         eprintln!("constructing memoized");
         let memoized_array_length = triangle_lookup_length(vectors.len());
         eprintln!(
@@ -335,15 +341,18 @@ impl MemoizedPartialDistances {
             partial_distances.set_len(memoized_array_length);
         }
         let size = vectors.len();
-        for c in 0..memoized_array_length {
-            let (i, j) = offset_to_index(size, c);
-            if i > 65535 || j > 65535 {
-                panic!("oh no {i} {j}");
-            }
-            partial_distances[c] = bf16::from_f32(
-                partial_distance_calculator.partial_distance(&vectors[i], &vectors[j]),
-            );
-        }
+        partial_distances
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(c, elt)| {
+                let (i, j) = offset_to_index(size, c);
+                if i > 65535 || j > 65535 {
+                    panic!("oh no {i} {j}");
+                }
+                *elt = bf16::from_f32(
+                    partial_distance_calculator.partial_distance(&vectors[i], &vectors[j]),
+                );
+            });
 
         Self {
             partial_distances,
@@ -387,7 +396,7 @@ pub type Centroid8Comparator = ArrayCentroidComparator<CENTROID_8_LENGTH, Euclid
 pub type Centroid16Comparator = ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16>;
 pub type Centroid32Comparator = ArrayCentroidComparator<CENTROID_32_LENGTH, EuclideanDistance32>;
 
-impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default>
+impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default + Sync>
     CentroidComparatorConstructor for ArrayCentroidComparator<SIZE, C>
 {
     fn new(centroids: Vec<Self::T>) -> Self {
@@ -423,7 +432,7 @@ impl<const N: usize, C> PartialDistance for ArrayCentroidComparator<N, C> {
     }
 }
 
-impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default> Serializable
+impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default + Sync> Serializable
     for ArrayCentroidComparator<N, C>
 {
     type Params = ();
