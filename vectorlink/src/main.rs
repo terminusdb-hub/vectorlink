@@ -188,8 +188,10 @@ enum Commands {
         directory: String,
         #[arg(short, long, default_value_t = 10000)]
         size: usize,
+        #[arg(short, long, default_value_t = 1.0)]
+        promotion_threshold: f32,
         #[arg(short, long, default_value_t = 0.01)]
-        threshold: f32,
+        neighbor_threshold: f32,
         #[arg(short, long, default_value_t = 1.0)]
         proportion: f32,
     },
@@ -501,7 +503,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             domain,
             directory,
             size,
-            threshold,
+            promotion_threshold,
+            neighbor_threshold,
             proportion,
         } => {
             let dirpath = Path::new(&directory);
@@ -514,7 +517,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
-            hnsw.improve_index(threshold, proportion);
+            hnsw.improve_index(promotion_threshold, neighbor_threshold, proportion, None);
 
             // TODO should write to staging first
             hnsw.serialize(hnsw_index_path)?;
@@ -539,7 +542,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
 
-            hnsw.improve_neighbors(threshold, proportion);
+            // TODO do a quick test recall here
+            hnsw.improve_neighbors(threshold, proportion, None);
 
             // TODO should write to staging first
             hnsw.serialize(hnsw_index_path)?;

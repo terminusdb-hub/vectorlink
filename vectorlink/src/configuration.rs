@@ -161,32 +161,68 @@ impl HnswConfiguration {
         }
     }
 
-    pub fn improve_index(&mut self, threshold: f32, recall: f32) {
+    pub fn improve_index(
+        &mut self,
+        outer_threshold: f32,
+        inner_threshold: f32,
+        recall_proportion: f32,
+        last_recall: Option<f32>,
+    ) -> f32 {
         match self {
-            HnswConfiguration::QuantizedOpenAi(_model, q) => q.improve_index(threshold, recall),
-            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
-                q.improve_index(threshold, recall)
-            }
-            HnswConfiguration::UnquantizedOpenAi(_model, h) => h.improve_index(threshold, recall),
-            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => q.improve_index(threshold, recall),
-            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => q.improve_index(threshold, recall),
+            HnswConfiguration::QuantizedOpenAi(_model, q) => q.improve_index(
+                outer_threshold,
+                inner_threshold,
+                recall_proportion,
+                last_recall,
+            ),
+            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => q.improve_index(
+                outer_threshold,
+                inner_threshold,
+                recall_proportion,
+                last_recall,
+            ),
+            HnswConfiguration::UnquantizedOpenAi(_model, h) => h.improve_index(
+                outer_threshold,
+                inner_threshold,
+                recall_proportion,
+                last_recall,
+            ),
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => q.improve_index(
+                outer_threshold,
+                inner_threshold,
+                recall_proportion,
+                last_recall,
+            ),
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => q.improve_index(
+                outer_threshold,
+                inner_threshold,
+                recall_proportion,
+                last_recall,
+            ),
         }
     }
 
-    pub fn improve_neighbors(&mut self, threshold: f32, recall: f32) {
+    pub fn improve_neighbors(
+        &mut self,
+        threshold: f32,
+        recall: f32,
+        last_recall: Option<f32>,
+    ) -> f32 {
         match self {
-            HnswConfiguration::QuantizedOpenAi(_model, q) => q.improve_neighbors(threshold, recall),
+            HnswConfiguration::QuantizedOpenAi(_model, q) => {
+                q.improve_neighbors(threshold, recall, last_recall)
+            }
             HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
-                q.improve_neighbors(threshold, recall)
+                q.improve_neighbors(threshold, recall, last_recall)
             }
             HnswConfiguration::UnquantizedOpenAi(_model, h) => {
-                h.improve_neighbors(threshold, recall)
+                h.improve_neighbors(threshold, recall, last_recall)
             }
             HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
-                q.improve_neighbors(threshold, recall)
+                q.improve_neighbors(threshold, recall, last_recall)
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
-                q.improve_neighbors(threshold, recall)
+                q.improve_neighbors(threshold, recall, last_recall)
             }
         }
     }
