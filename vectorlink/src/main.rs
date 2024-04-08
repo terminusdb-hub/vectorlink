@@ -649,6 +649,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 HnswConfiguration::SmallQuantizedOpenAi(_, q) => test_quantization(&q),
                 HnswConfiguration::SmallQuantizedOpenAi8(_, q) => test_quantization(&q),
                 HnswConfiguration::SmallQuantizedOpenAi4(_, q) => test_quantization(&q),
+                HnswConfiguration::Quantized1024By16(_, q) => test_quantization(&q),
                 HnswConfiguration::UnquantizedOpenAi(_, _) => panic!("not a quantized hnsw"),
             };
             eprintln!("sample avg: {sample_avg}\nsample var: {sample_var}\nsample deviation: {sample_deviation}");

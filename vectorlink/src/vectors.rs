@@ -27,8 +27,8 @@ use crate::store::{
     ImmutableVectorFile, LoadedVectorRange, SequentialVectorLoader, VectorFile, VectorLoader,
 };
 use crate::vecmath::{
-    Centroid32, Embedding, EmbeddingBytes, CENTROID_32_LENGTH, EMBEDDING_BYTE_LENGTH,
-    EMBEDDING_LENGTH, QUANTIZED_32_EMBEDDING_LENGTH,
+    Centroid32, Embedding, Embedding1024, EmbeddingBytes, CENTROID_32_LENGTH,
+    EMBEDDING_BYTE_LENGTH, EMBEDDING_LENGTH, QUANTIZED_32_EMBEDDING_LENGTH,
 };
 use parallel_hnsw::pq::HnswQuantizer;
 
@@ -46,6 +46,24 @@ impl VectorStore {
     }
 
     pub fn get_domain(&self, name: &str) -> io::Result<Arc<Domain<Embedding>>> {
+        let domains = self.domains.read().unwrap();
+        if let Some(domain) = domains.get(name) {
+            Ok(downcast_generic_domain(domain.clone()))
+        } else {
+            std::mem::drop(domains);
+            let mut domains = self.domains.write().unwrap();
+            if let Some(domain) = domains.get(name) {
+                Ok(downcast_generic_domain(domain.clone()))
+            } else {
+                let domain = Arc::new(Domain::open(&self.dir, name)?);
+                domains.insert(name.to_string(), domain.clone());
+
+                Ok(domain)
+            }
+        }
+    }
+
+    pub fn get_domain_1024(&self, name: &str) -> io::Result<Arc<Domain<Embedding1024>>> {
         let domains = self.domains.read().unwrap();
         if let Some(domain) = domains.get(name) {
             Ok(downcast_generic_domain(domain.clone()))

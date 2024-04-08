@@ -19,11 +19,12 @@ use parallel_hnsw::{pq, Comparator, Serializable, SerializationError, VectorId};
 
 use crate::store::{ImmutableVectorFile, LoadedVectorRange, VectorFile};
 use crate::vecmath::{
-    self, EuclideanDistance16, EuclideanDistance32, EuclideanDistance4, EuclideanDistance8,
-    Quantized16Embedding, Quantized32Embedding, Quantized4Embedding, Quantized8Embedding,
-    CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH, CENTROID_8_LENGTH,
-    QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_32_EMBEDDING_LENGTH, QUANTIZED_4_EMBEDDING_LENGTH,
-    QUANTIZED_8_EMBEDDING_LENGTH,
+    self, normalized_cosine_distance_1024, Embedding1024, EuclideanDistance16,
+    EuclideanDistance16For1024, EuclideanDistance32, EuclideanDistance4, EuclideanDistance8,
+    Quantized16Embedding, Quantized16Embedding1024, Quantized32Embedding, Quantized4Embedding,
+    Quantized8Embedding, CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH,
+    CENTROID_8_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH_1024,
+    QUANTIZED_32_EMBEDDING_LENGTH, QUANTIZED_4_EMBEDDING_LENGTH, QUANTIZED_8_EMBEDDING_LENGTH,
 };
 use crate::{
     vecmath::{normalized_cosine_distance, Embedding},
@@ -94,6 +95,97 @@ impl Serializable for DiskOpenAIComparator {
 
 impl pq::VectorSelector for DiskOpenAIComparator {
     type T = Embedding;
+
+    fn selection(&self, size: usize) -> Vec<Self::T> {
+        // TODO do something else for sizes close to number of vecs
+        if size >= self.vectors.num_vecs() {
+            return self.vectors.all_vectors().unwrap().clone().into_vec();
+        }
+        let mut rng = thread_rng();
+        let mut set = HashSet::new();
+        let range = Uniform::from(0_usize..self.vectors.num_vecs());
+        while set.len() != size {
+            let candidate = rng.sample(&range);
+            set.insert(candidate);
+        }
+
+        set.into_iter()
+            .map(|index| self.vectors.vec(index).unwrap())
+            .collect()
+    }
+
+    fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>> {
+        self.vectors
+            .vector_chunks(1_000_000)
+            .unwrap()
+            .map(|x| x.unwrap())
+    }
+}
+
+#[derive(Clone)]
+pub struct Disk1024Comparator {
+    domain: String,
+    vectors: Arc<ImmutableVectorFile<Embedding1024>>,
+}
+
+impl Disk1024Comparator {
+    pub fn new(domain: String, vectors: Arc<ImmutableVectorFile<Embedding1024>>) -> Self {
+        Self { domain, vectors }
+    }
+}
+
+impl Comparator for Disk1024Comparator {
+    type T = Embedding1024;
+    type Borrowable<'a> = Box<Embedding1024>
+        where Self: 'a;
+    fn lookup(&self, v: VectorId) -> Box<Embedding1024> {
+        Box::new(self.vectors.vec(v.0).unwrap())
+    }
+
+    fn compare_raw(&self, v1: &Embedding1024, v2: &Embedding1024) -> f32 {
+        normalized_cosine_distance_1024(v1, v2)
+    }
+}
+
+impl Serializable for Disk1024Comparator {
+    type Params = Arc<VectorStore>;
+    fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
+        let mut comparator_file: std::fs::File = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(path)?;
+        eprintln!("opened comparator serialize file");
+        // How do we get this value?
+        let comparator = ComparatorMeta {
+            domain_name: self.domain.clone(),
+            size: self.vectors.num_vecs(),
+        };
+        let comparator_meta = serde_json::to_string(&comparator)?;
+        eprintln!("serialized comparator");
+        comparator_file.write_all(&comparator_meta.into_bytes())?;
+        eprintln!("wrote comparator to file");
+        Ok(())
+    }
+
+    fn deserialize<P: AsRef<Path>>(
+        path: P,
+        store: Arc<VectorStore>,
+    ) -> Result<Self, SerializationError> {
+        let mut comparator_file = OpenOptions::new().read(true).open(path)?;
+        let mut contents = String::new();
+        comparator_file.read_to_string(&mut contents)?;
+        let ComparatorMeta { domain_name, .. } = serde_json::from_str(&contents)?;
+        let domain = store.get_domain_1024(&domain_name)?;
+        Ok(Disk1024Comparator {
+            domain: domain.name().to_owned(),
+            vectors: Arc::new(domain.immutable_file()),
+        })
+    }
+}
+
+impl pq::VectorSelector for Disk1024Comparator {
+    type T = Embedding1024;
 
     fn selection(&self, size: usize) -> Vec<Self::T> {
         // TODO do something else for sizes close to number of vecs
@@ -394,6 +486,8 @@ unsafe impl<const N: usize, C> Sync for ArrayCentroidComparator<N, C> {}
 pub type Centroid4Comparator = ArrayCentroidComparator<CENTROID_4_LENGTH, EuclideanDistance4>;
 pub type Centroid8Comparator = ArrayCentroidComparator<CENTROID_8_LENGTH, EuclideanDistance8>;
 pub type Centroid16Comparator = ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16>;
+pub type Centroid16Comparator1024 =
+    ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16For1024>;
 pub type Centroid32Comparator = ArrayCentroidComparator<CENTROID_32_LENGTH, EuclideanDistance32>;
 
 impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default + Sync>
@@ -591,6 +685,12 @@ impl PartialDistance for Quantized4Comparator {
     }
 }
 
+impl PartialDistance for Quantized16Comparator1024 {
+    fn partial_distance(&self, i: u16, j: u16) -> f32 {
+        self.cc.partial_distance(i, j)
+    }
+}
+
 impl Comparator for Quantized32Comparator
 where
     Quantized32Comparator: PartialDistance,
@@ -643,6 +743,103 @@ impl Serializable for Quantized32Comparator {
 
 impl pq::VectorStore for Quantized32Comparator {
     type T = <Quantized32Comparator as Comparator>::T;
+
+    fn store(&mut self, i: Box<dyn Iterator<Item = Self::T>>) -> Vec<VectorId> {
+        // this is p retty stupid, but then, these comparators should not be storing in the first place
+        let mut new_contents: Vec<Self::T> = Vec::with_capacity(self.data.len() + i.size_hint().0);
+        new_contents.extend(self.data.vecs().iter());
+        let vid = self.data.len();
+        let mut vectors: Vec<VectorId> = Vec::new();
+        new_contents.extend(i.enumerate().map(|(i, v)| {
+            vectors.push(VectorId(vid + i));
+            v
+        }));
+        let end = new_contents.len();
+
+        let data = LoadedVectorRange::new(new_contents, 0..end);
+        self.data = Arc::new(data);
+
+        vectors
+    }
+}
+
+#[derive(Clone)]
+pub struct Quantized16Comparator1024 {
+    pub cc: Centroid16Comparator1024,
+    pub data: Arc<LoadedVectorRange<Quantized16Embedding1024>>,
+}
+
+impl QuantizedComparatorConstructor for Quantized16Comparator1024 {
+    type CentroidComparator = Centroid16Comparator1024;
+
+    fn new(cc: &Self::CentroidComparator) -> Self {
+        Self {
+            cc: cc.clone(),
+            data: Default::default(),
+        }
+    }
+}
+
+impl QuantizedData for Quantized16Comparator1024 {
+    type Quantized = Quantized16Embedding1024;
+
+    fn data(&self) -> &Arc<LoadedVectorRange<Self::Quantized>> {
+        &self.data
+    }
+}
+
+impl Comparator for Quantized16Comparator1024
+where
+    Quantized16Comparator1024: PartialDistance,
+{
+    type T = Quantized16Embedding1024;
+
+    type Borrowable<'a> = &'a Quantized16Embedding1024;
+
+    fn lookup(&self, v: VectorId) -> Self::Borrowable<'_> {
+        &self.data[v.0]
+    }
+
+    fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
+        let mut partial_distances = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH_1024];
+        for ix in 0..QUANTIZED_16_EMBEDDING_LENGTH_1024 {
+            let partial_1 = v1[ix];
+            let partial_2 = v2[ix];
+            let partial_distance = self.cc.partial_distance(partial_1, partial_2);
+            partial_distances[ix] = partial_distance;
+        }
+
+        vecmath::sum_64(&partial_distances).sqrt()
+    }
+}
+
+impl Serializable for Quantized16Comparator1024 {
+    type Params = Centroid16Comparator1024;
+
+    fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
+        let path_buf: PathBuf = path.as_ref().into();
+        std::fs::create_dir_all(&path_buf)?;
+
+        let vector_path = path_buf.join("vectors");
+        let mut vector_file = VectorFile::create(vector_path, true)?;
+        vector_file.append_vector_range(self.data.vecs())?;
+        Ok(())
+    }
+
+    fn deserialize<P: AsRef<Path>>(path: P, cc: Self::Params) -> Result<Self, SerializationError> {
+        let path_buf: PathBuf = path.as_ref().into();
+
+        let vector_path = path_buf.join("vectors");
+        let vector_file = VectorFile::open(vector_path, true)?;
+        let range = vector_file.all_vectors()?;
+
+        let data = Arc::new(range);
+        Ok(Self { cc, data })
+    }
+}
+
+impl pq::VectorStore for Quantized16Comparator1024 {
+    type T = <Quantized16Comparator1024 as Comparator>::T;
 
     fn store(&mut self, i: Box<dyn Iterator<Item = Self::T>>) -> Vec<VectorId> {
         // this is p retty stupid, but then, these comparators should not be storing in the first place

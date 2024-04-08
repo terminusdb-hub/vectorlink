@@ -7,14 +7,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     comparator::{
-        Centroid16Comparator, Centroid32Comparator, Centroid4Comparator, Centroid8Comparator,
-        DiskOpenAIComparator, OpenAIComparator, Quantized16Comparator, Quantized32Comparator,
+        Centroid16Comparator, Centroid16Comparator1024, Centroid32Comparator, Centroid4Comparator,
+        Centroid8Comparator, Disk1024Comparator, DiskOpenAIComparator, OpenAIComparator,
+        Quantized16Comparator, Quantized16Comparator1024, Quantized32Comparator,
         Quantized4Comparator, Quantized8Comparator,
     },
     openai::Model,
     vecmath::{
-        Embedding, CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH, CENTROID_8_LENGTH,
-        EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_32_EMBEDDING_LENGTH,
+        Embedding, Embedding1024, CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH,
+        CENTROID_8_LENGTH, EMBEDDING_LENGTH, EMBEDDING_LENGTH_1024, QUANTIZED_16_EMBEDDING_LENGTH,
+        QUANTIZED_16_EMBEDDING_LENGTH_1024, QUANTIZED_32_EMBEDDING_LENGTH,
         QUANTIZED_4_EMBEDDING_LENGTH, QUANTIZED_8_EMBEDDING_LENGTH,
     },
     vectors::VectorStore,
@@ -29,6 +31,7 @@ pub enum HnswConfigurationType {
     SmallQuantizedOpenAi8,
     SmallQuantizedOpenAi4,
     UnquantizedOpenAi,
+    Quantized1024,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -85,6 +88,17 @@ pub enum HnswConfiguration {
         >,
     ),
     UnquantizedOpenAi(Model, OpenAIHnsw),
+    Quantized1024By16(
+        Model,
+        QuantizedHnsw<
+            EMBEDDING_LENGTH_1024,
+            CENTROID_16_LENGTH,
+            QUANTIZED_16_EMBEDDING_LENGTH_1024,
+            Centroid16Comparator1024,
+            Quantized16Comparator1024,
+            Disk1024Comparator,
+        >,
+    ),
 }
 
 impl HnswConfiguration {
@@ -105,6 +119,9 @@ impl HnswConfiguration {
             HnswConfiguration::SmallQuantizedOpenAi4(model, _) => {
                 (HnswConfigurationType::SmallQuantizedOpenAi4, model)
             }
+            HnswConfiguration::Quantized1024By16(model, _) => {
+                (HnswConfigurationType::Quantized1024, model)
+            }
         };
         let version = 1;
 
@@ -122,6 +139,7 @@ impl HnswConfiguration {
             HnswConfiguration::UnquantizedOpenAi(m, _) => *m,
             HnswConfiguration::SmallQuantizedOpenAi8(m, _) => *m,
             HnswConfiguration::SmallQuantizedOpenAi4(m, _) => *m,
+            HnswConfiguration::Quantized1024By16(m, _) => *m,
         }
     }
 
@@ -133,6 +151,7 @@ impl HnswConfiguration {
             HnswConfiguration::UnquantizedOpenAi(_model, h) => h.vector_count(),
             HnswConfiguration::SmallQuantizedOpenAi8(_model, q) => q.vector_count(),
             HnswConfiguration::SmallQuantizedOpenAi4(_model, q) => q.vector_count(),
+            HnswConfiguration::Quantized1024By16(_, q) => q.vector_count(),
         }
     }
 
@@ -157,6 +176,25 @@ impl HnswConfiguration {
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
                 q.search(v, number_of_candidates, probe_depth)
+            }
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                panic!();
+            }
+        }
+    }
+
+    pub fn search_1024(
+        &self,
+        v: AbstractVector<Embedding1024>,
+        number_of_candidates: usize,
+        probe_depth: usize,
+    ) -> Vec<(VectorId, f32)> {
+        match self {
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                q.search(v, number_of_candidates, probe_depth)
+            }
+            _ => {
+                panic!();
             }
         }
     }
@@ -199,6 +237,12 @@ impl HnswConfiguration {
                 recall_proportion,
                 last_recall,
             ),
+            HnswConfiguration::Quantized1024By16(_, q) => q.improve_index(
+                outer_threshold,
+                inner_threshold,
+                recall_proportion,
+                last_recall,
+            ),
         }
     }
 
@@ -224,6 +268,9 @@ impl HnswConfiguration {
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
                 q.improve_neighbors(threshold, recall, last_recall)
             }
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                q.improve_neighbors(threshold, recall, last_recall)
+            }
         }
     }
 
@@ -244,6 +291,9 @@ impl HnswConfiguration {
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
                 q.promote_at_layer(layer_from_top, max_proportion)
             }
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                q.promote_at_layer(layer_from_top, max_proportion)
+            }
         }
     }
 
@@ -254,6 +304,7 @@ impl HnswConfiguration {
             HnswConfiguration::UnquantizedOpenAi(_model, h) => h.zero_neighborhood_size(),
             HnswConfiguration::SmallQuantizedOpenAi8(_model, q) => q.zero_neighborhood_size(),
             HnswConfiguration::SmallQuantizedOpenAi4(_model, q) => q.zero_neighborhood_size(),
+            HnswConfiguration::Quantized1024By16(_model, q) => q.zero_neighborhood_size(),
         }
     }
     pub fn threshold_nn(
@@ -280,10 +331,13 @@ impl HnswConfiguration {
                 )))))
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_model, q) => {
-                Either::Right(Either::Right(Either::Right(Either::Right(q.threshold_nn(
-                    threshold,
-                    probe_depth,
-                    initial_search_depth,
+                Either::Right(Either::Right(Either::Right(Either::Right(Either::Left(
+                    q.threshold_nn(threshold, probe_depth, initial_search_depth),
+                )))))
+            }
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                Either::Right(Either::Right(Either::Right(Either::Right(Either::Right(
+                    q.threshold_nn(threshold, probe_depth, initial_search_depth),
                 )))))
             }
         }
@@ -300,6 +354,7 @@ impl HnswConfiguration {
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
                 q.stochastic_recall(recall_proportion)
             }
+            HnswConfiguration::Quantized1024By16(_, q) => q.stochastic_recall(recall_proportion),
         }
     }
 }
@@ -317,6 +372,7 @@ impl Serializable for HnswConfiguration {
             HnswConfiguration::SmallQuantizedOpenAi(_, qhnsw) => qhnsw.serialize(&path)?,
             HnswConfiguration::SmallQuantizedOpenAi8(_, qhnsw) => qhnsw.serialize(&path)?,
             HnswConfiguration::SmallQuantizedOpenAi4(_, qhnsw) => qhnsw.serialize(&path)?,
+            HnswConfiguration::Quantized1024By16(_, qhnsw) => qhnsw.serialize(&path)?,
         }
         let state_path: PathBuf = path.as_ref().join("state.json");
         let mut state_file = OpenOptions::new()
@@ -365,6 +421,10 @@ impl Serializable for HnswConfiguration {
                     QuantizedHnsw::deserialize(path, params)?,
                 )
             }
+            HnswConfigurationType::Quantized1024 => HnswConfiguration::Quantized1024By16(
+                state.model,
+                QuantizedHnsw::deserialize(path, params)?,
+            ),
         })
     }
 }

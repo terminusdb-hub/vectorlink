@@ -6,6 +6,11 @@ pub const EMBEDDING_BYTE_LENGTH: usize = EMBEDDING_LENGTH * 4;
 pub type Embedding = [f32; EMBEDDING_LENGTH];
 pub type EmbeddingBytes = [u8; EMBEDDING_BYTE_LENGTH];
 
+pub const EMBEDDING_LENGTH_1024: usize = 1024;
+pub const EMBEDDING_BYTE_LENGTH_1024: usize = EMBEDDING_LENGTH_1024 * 4;
+pub type Embedding1024 = [f32; EMBEDDING_LENGTH_1024];
+pub type EmbeddingBytes1024 = [u8; EMBEDDING_BYTE_LENGTH_1024];
+
 pub const QUANTIZED_32_EMBEDDING_LENGTH: usize = 48;
 pub const QUANTIZED_32_EMBEDDING_BYTE_LENGTH: usize = QUANTIZED_32_EMBEDDING_LENGTH * 2;
 pub type Quantized32Embedding = [u16; QUANTIZED_32_EMBEDDING_LENGTH];
@@ -20,6 +25,11 @@ pub const QUANTIZED_16_EMBEDDING_LENGTH: usize = 96;
 pub const QUANTIZED_16_EMBEDDING_BYTE_LENGTH: usize = QUANTIZED_16_EMBEDDING_LENGTH * 2;
 pub type Quantized16Embedding = [u16; QUANTIZED_16_EMBEDDING_LENGTH];
 pub type Quantized16EmbeddingBytes = [u8; QUANTIZED_16_EMBEDDING_BYTE_LENGTH];
+
+pub const QUANTIZED_16_EMBEDDING_LENGTH_1024: usize = 64;
+pub const QUANTIZED_16_EMBEDDING_BYTE_LENGTH_1024: usize = QUANTIZED_16_EMBEDDING_LENGTH_1024 * 2;
+pub type Quantized16Embedding1024 = [u16; QUANTIZED_16_EMBEDDING_LENGTH_1024];
+pub type Quantized16EmbeddingBytes1024 = [u8; QUANTIZED_16_EMBEDDING_BYTE_LENGTH_1024];
 
 pub const CENTROID_16_LENGTH: usize = 16;
 pub const CENTROID_16_BYTE_LENGTH: usize = CENTROID_16_LENGTH * 4;
@@ -111,6 +121,10 @@ pub fn normalized_cosine_distance(left: &Embedding, right: &Embedding) -> f32 {
     simd::normalized_cosine_distance_simd(left, right)
 }
 
+pub fn normalized_cosine_distance_1024(left: &Embedding1024, right: &Embedding1024) -> f32 {
+    simd::normalized_cosine_distance_simd_1024(left, right)
+}
+
 pub fn normalized_cosine_distance_32(v1: &Centroid32, v2: &Centroid32) -> f32 {
     normalized_cosine_distance_32_simd(v1, v2)
 }
@@ -197,6 +211,27 @@ impl DistanceCalculator for EuclideanDistance16 {
 }
 
 #[derive(Default)]
+pub struct EuclideanDistance16For1024;
+impl DistanceCalculator for EuclideanDistance16For1024 {
+    type T = Centroid16;
+
+    fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
+        euclidean_partial_distance_16(left, right)
+    }
+
+    fn finalize_partial_distance(&self, distance: f32) -> f32 {
+        distance.sqrt()
+    }
+
+    fn aggregate_partial_distances(&self, distances: &[f32]) -> f32 {
+        assert!(distances.len() == QUANTIZED_16_EMBEDDING_LENGTH_1024);
+        let cast =
+            unsafe { &*(distances.as_ptr() as *const [f32; QUANTIZED_16_EMBEDDING_LENGTH_1024]) };
+        simd::sum_64(cast).sqrt()
+    }
+}
+
+#[derive(Default)]
 pub struct EuclideanDistance8;
 impl DistanceCalculator for EuclideanDistance8 {
     type T = Centroid8;
@@ -244,6 +279,10 @@ pub fn sum_48(vec: &[f32; 48]) -> f32 {
     simd::sum_48(vec)
 }
 
+pub fn sum_64(vec: &[f32; 64]) -> f32 {
+    simd::sum_64(vec)
+}
+
 pub fn sum_96(vec: &[f32; 96]) -> f32 {
     simd::sum_96(vec)
 }
@@ -266,6 +305,19 @@ pub mod simd {
     }
 
     pub fn normalized_cosine_distance_simd(left: &Embedding, right: &Embedding) -> f32 {
+        let mut sum = <f32x16>::splat(0.);
+        for x in 0..left.len() / 16 {
+            let l = <f32x16>::from_slice(&left[x * 16..(x + 1) * 16]);
+            let r = <f32x16>::from_slice(&right[x * 16..(x + 1) * 16]);
+            sum += l * r;
+        }
+        normalize_cosine_distance(sum.reduce_sum())
+    }
+
+    pub fn normalized_cosine_distance_simd_1024(
+        left: &Embedding1024,
+        right: &Embedding1024,
+    ) -> f32 {
         let mut sum = <f32x16>::splat(0.);
         for x in 0..left.len() / 16 {
             let l = <f32x16>::from_slice(&left[x * 16..(x + 1) * 16]);
@@ -369,6 +421,15 @@ pub mod simd {
         let mut sum = <f32x16>::from_slice(&array[..16]);
         sum += <f32x16>::from_slice(&array[16..32]);
         sum += <f32x16>::from_slice(&array[32..48]);
+
+        sum.reduce_sum()
+    }
+
+    pub fn sum_64(array: &[f32; 64]) -> f32 {
+        let mut sum = <f32x16>::from_slice(&array[..16]);
+        sum += <f32x16>::from_slice(&array[16..32]);
+        sum += <f32x16>::from_slice(&array[32..48]);
+        sum += <f32x16>::from_slice(&array[48..64]);
 
         sum.reduce_sum()
     }
