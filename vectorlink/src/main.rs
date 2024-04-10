@@ -193,7 +193,9 @@ enum Commands {
         #[arg(short, long, default_value_t = 0.01)]
         neighbor_threshold: f32,
         #[arg(short, long, default_value_t = 1.0)]
-        proportion: f32,
+        recall_proportion: f32,
+        #[arg(short, long, default_value_t = 1.0)]
+        promotion_proportion: f32,
     },
     ImproveNeighbors {
         #[arg(short, long)]
@@ -505,7 +507,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             size,
             promotion_threshold,
             neighbor_threshold,
-            proportion,
+            recall_proportion,
+            promotion_proportion,
         } => {
             let dirpath = Path::new(&directory);
             let hnsw_index_path = dbg!(format!(
@@ -517,7 +520,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
-            hnsw.improve_index(promotion_threshold, neighbor_threshold, proportion, None);
+            hnsw.improve_index(
+                promotion_threshold,
+                neighbor_threshold,
+                recall_proportion,
+                promotion_proportion,
+                None,
+            );
 
             // TODO should write to staging first
             hnsw.serialize(hnsw_index_path)?;
