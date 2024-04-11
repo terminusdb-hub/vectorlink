@@ -746,7 +746,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut vec = vec![0.0f32; target_vector_size];
 
-            for _ in 0..number_of_vecs {
+            for i in 0..number_of_vecs {
+                if i % 100_000 == 0 {
+                    eprintln!("{i}/{number_of_vecs}");
+                }
                 let buf = unsafe {
                     std::slice::from_raw_parts_mut(
                         vec.as_mut_ptr() as *mut u8,
