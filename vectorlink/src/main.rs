@@ -188,7 +188,7 @@ enum Commands {
         directory: String,
         #[arg(short, long, default_value_t = 10000)]
         size: usize,
-        #[arg(short, long, default_value_t = 1.0)]
+        #[arg(short = 't', long, default_value_t = 1.0)]
         promotion_threshold: f32,
         #[arg(short, long, default_value_t = 0.01)]
         neighbor_threshold: f32,
@@ -274,6 +274,14 @@ enum Commands {
         output_map: String,
         #[arg(short, long)]
         vector_size: usize,
+    },
+    ScaleVecs {
+        source_vector_file: String,
+        target_vector_file: String,
+        #[arg(short, long)]
+        source_vector_size: usize,
+        #[arg(short, long)]
+        target_vector_size: usize,
     },
 }
 
@@ -720,6 +728,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 vec_file.read_at(&mut buf, byte_offset as u64).unwrap();
                 output_vecs.write_all(&buf).unwrap();
             }
+        }
+        Commands::ScaleVecs {
+            source_vector_file,
+            target_vector_file,
+            source_vector_size,
+            target_vector_size,
+        } => {
+            assert!(source_vector_size < target_vector_size);
+            let mut source_vector_file = File::open(source_vector_file).unwrap();
+            let mut target_vector_file = File::create(target_vector_file).unwrap();
+
+            let source_byte_size = source_vector_file.metadata().unwrap().size() as usize;
+            assert!(source_byte_size % source_vector_size == 0);
+            let source_vector_byte_size = source_vector_size * std::mem::size_of::<f32>();
+            let number_of_vecs = source_byte_size / source_vector_byte_size;
+
+            let mut vec = vec![0.0f32; target_vector_size];
+
+            for _ in 0..number_of_vecs {
+                let buf = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        vec.as_mut_ptr() as *mut u8,
+                        source_vector_size * std::mem::size_of::<f32>(),
+                    )
+                };
+
+                source_vector_file.read_exact(buf).unwrap();
+                let buf = unsafe {
+                    std::slice::from_raw_parts(
+                        vec.as_ptr() as *mut u8,
+                        target_vector_size * std::mem::size_of::<f32>(),
+                    )
+                };
+                target_vector_file.write_all(buf).unwrap();
+            }
+
+            target_vector_file.flush().unwrap();
         }
     }
 
