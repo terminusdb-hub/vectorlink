@@ -612,7 +612,7 @@ impl Service {
                     match result {
                         Ok((id, hnsw)) => {
                             let layer_len = hnsw.layer_count();
-                            self.set_index(id, hnsw.into()).await;
+                            self.set_index(id, hnsw).await;
                             self.set_task_status(
                                 task_id,
                                 TaskStatus::Completed {

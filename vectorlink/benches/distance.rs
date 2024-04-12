@@ -28,7 +28,7 @@ mod simd_benches {
         let e1 = aligned_box(random_normalized_embedding(&mut rng));
         let e2 = aligned_box(random_normalized_embedding(&mut rng));
 
-        b.iter(move || unsafe { normalized_cosine_distance_simd(&e1, &e2) });
+        b.iter(move || normalized_cosine_distance_simd(&e1, &e2));
     }
 
     #[bench]

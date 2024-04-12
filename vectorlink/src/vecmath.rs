@@ -76,13 +76,7 @@ pub fn random_normalized_embedding<R: Rng>(rng: &mut R) -> Embedding {
 
 #[inline]
 pub fn clamp_01(f: f32) -> f32 {
-    if f <= 0.0 {
-        0.0
-    } else if f >= 1.0 {
-        1.0
-    } else {
-        f
-    }
+    f.clamp(0.0, 1.0)
 }
 
 fn normalize_cosine_distance(f: f32) -> f32 {
@@ -475,7 +469,7 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(seed);
 
         let mut e1 = random_embedding(&mut rng);
-        let mut e2 = e1.clone();
+        let mut e2 = e1;
 
         assert_eq!(e1, e2);
 

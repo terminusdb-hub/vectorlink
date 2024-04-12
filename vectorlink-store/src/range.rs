@@ -4,17 +4,34 @@ use std::{
 };
 
 /// A range of vectors loaded into memory.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct LoadedVectorRange {
     range: Range<usize>,
     vecs: Box<[u8]>,
 }
 
 /// A range of vectors of type T loaded into memory.
-#[derive(Default)]
 pub struct LoadedSizedVectorRange<T: Copy> {
     inner: LoadedVectorRange,
     _x: PhantomData<T>,
+}
+
+impl<T: Copy> Default for LoadedSizedVectorRange<T> {
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+            _x: Default::default(),
+        }
+    }
+}
+
+impl<T: Copy> Clone for LoadedSizedVectorRange<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            _x: PhantomData,
+        }
+    }
 }
 
 impl LoadedVectorRange {

@@ -29,7 +29,10 @@ impl VectorFile {
         }
     }
 
-    #[allow(unused)]
+    pub fn vector_byte_size(&self) -> usize {
+        self.vector_byte_size
+    }
+
     pub fn create_new<P: AsRef<Path>>(
         path: P,
         vector_byte_size: usize,
@@ -44,6 +47,7 @@ impl VectorFile {
         let file = options.open(&path)?;
         Ok(Self::new(path, file, 0, vector_byte_size))
     }
+
     pub fn create<P: AsRef<Path>>(
         path: P,
         vector_byte_size: usize,
@@ -57,6 +61,9 @@ impl VectorFile {
         }
         let file = options.open(&path)?;
         Ok(Self::new(path, file, 0, vector_byte_size))
+    }
+    pub fn create_size<P: AsRef<Path>, T>(path: P, os_cached: bool) -> io::Result<Self> {
+        Self::create(path, std::mem::size_of::<T>(), os_cached)
     }
 
     pub fn open<P: AsRef<Path>>(
@@ -81,6 +88,10 @@ impl VectorFile {
         Ok(Self::new(path, file, num_vecs, vector_byte_size))
     }
 
+    pub fn open_size<P: AsRef<Path>, T>(path: P, os_cached: bool) -> io::Result<Self> {
+        Self::open(path, std::mem::size_of::<T>(), os_cached)
+    }
+
     pub fn open_create<P: AsRef<Path>>(
         path: P,
         vector_byte_size: usize,
@@ -93,13 +104,16 @@ impl VectorFile {
         }
     }
 
-    pub fn as_sized<T: Copy>(&mut self) -> SizedVectorFile<'_, T> {
+    pub fn as_sized<T: Copy>(&self) -> &SizedVectorFile<T> {
         assert_eq!(std::mem::size_of::<T>(), self.vector_byte_size);
 
-        SizedVectorFile {
-            inner: self,
-            _x: PhantomData,
-        }
+        unsafe { std::mem::transmute(self) }
+    }
+
+    pub fn as_sized_mut<T: Copy>(&mut self) -> &mut SizedVectorFile<T> {
+        assert_eq!(std::mem::size_of::<T>(), self.vector_byte_size);
+
+        unsafe { std::mem::transmute(self) }
     }
 
     pub fn num_vecs(&self) -> usize {
@@ -117,6 +131,27 @@ impl VectorFile {
         SequentialVectorLoader::open(&self.path, chunk_size)
     }
 
+    pub fn append_vector_file(&mut self, file: &VectorFile) -> io::Result<usize> {
+        assert_eq!(self.vector_byte_size, file.vector_byte_size);
+        let mut read_offset = 0;
+        let mut write_offset = (self.num_vecs * self.vector_byte_size) as u64;
+
+        let num_vecs_to_write = file.num_vecs;
+        let mut num_bytes_to_write = num_vecs_to_write * self.vector_byte_size;
+
+        let mut buf = vec![0_u8; 4096];
+        while num_bytes_to_write != 0 {
+            let n = file.file.read_at(&mut buf, read_offset)?;
+            self.file.write_all_at(&buf[..n], write_offset)?;
+            num_bytes_to_write -= n;
+            read_offset += n as u64;
+            write_offset += n as u64;
+        }
+        self.file.sync_data()?;
+
+        Ok(num_vecs_to_write)
+    }
+
     pub fn as_immutable(&self) -> ImmutableVectorFile {
         ImmutableVectorFile(Self {
             path: self.path.clone(),
@@ -130,12 +165,12 @@ impl VectorFile {
     }
 }
 
-pub struct SizedVectorFile<'a, T: Copy> {
-    inner: &'a mut VectorFile,
+pub struct SizedVectorFile<T: Copy> {
+    inner: VectorFile,
     _x: PhantomData<T>,
 }
 
-impl<'a, T: Copy> SizedVectorFile<'a, T> {
+impl<T: Copy> SizedVectorFile<T> {
     pub fn num_vecs(&self) -> usize {
         self.inner.num_vecs()
     }
@@ -182,23 +217,7 @@ impl<'a, T: Copy> SizedVectorFile<'a, T> {
     }
 
     pub fn append_vector_file(&mut self, file: &SizedVectorFile<T>) -> io::Result<usize> {
-        let mut read_offset = 0;
-        let mut write_offset = (self.inner.num_vecs * std::mem::size_of::<T>()) as u64;
-
-        let num_vecs_to_write = file.inner.num_vecs;
-        let mut num_bytes_to_write = num_vecs_to_write * std::mem::size_of::<T>();
-
-        let mut buf = vec![0_u8; 4096];
-        while num_bytes_to_write != 0 {
-            let n = file.inner.file.read_at(&mut buf, read_offset)?;
-            self.inner.file.write_all_at(&buf[..n], write_offset)?;
-            num_bytes_to_write -= n;
-            read_offset += n as u64;
-            write_offset += n as u64;
-        }
-        self.inner.file.sync_data()?;
-
-        Ok(num_vecs_to_write)
+        self.inner.append_vector_file(&file.inner)
     }
 
     pub fn vector_loader(&self) -> SizedVectorLoader<T> {
@@ -260,5 +279,46 @@ impl ImmutableVectorFile {
         chunk_size: usize,
     ) -> io::Result<SequentialVectorLoader<T>> {
         self.0.vector_chunks(chunk_size)
+    }
+
+    pub fn into_sized<T: Copy>(self) -> ImmutableSizedVectorFile<T> {
+        assert_eq!(std::mem::size_of::<T>(), self.0.vector_byte_size);
+
+        ImmutableSizedVectorFile {
+            inner: self,
+            _x: PhantomData,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ImmutableSizedVectorFile<T: Copy> {
+    inner: ImmutableVectorFile,
+    _x: PhantomData<T>,
+}
+
+impl<T: Copy> ImmutableSizedVectorFile<T> {
+    pub fn vector_loader(&self) -> SizedVectorLoader<T> {
+        self.inner.vector_loader().into_sized()
+    }
+
+    pub fn vector_range(&self, range: Range<usize>) -> io::Result<LoadedSizedVectorRange<T>> {
+        self.vector_loader().load_range(range)
+    }
+
+    pub fn vec(&self, index: usize) -> io::Result<T> {
+        self.vector_loader().load_vec(index)
+    }
+
+    pub fn all_vectors(&self) -> io::Result<LoadedSizedVectorRange<T>> {
+        self.vector_loader().load_range(0..self.num_vecs())
+    }
+
+    pub fn num_vecs(&self) -> usize {
+        self.inner.num_vecs()
+    }
+
+    pub fn vector_chunks(&self, chunk_size: usize) -> io::Result<SequentialVectorLoader<T>> {
+        self.inner.vector_chunks(chunk_size)
     }
 }

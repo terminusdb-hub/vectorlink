@@ -27,16 +27,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 use configuration::HnswConfiguration;
 //use hnsw::Hnsw;
 use openai::Model;
-use parallel_hnsw::pq::Quantizer;
-use parallel_hnsw::pq::VectorSelector;
 use parallel_hnsw::AbstractVector;
-use parallel_hnsw::Comparator;
 use parallel_hnsw::Serializable;
 use rand::prelude::*;
 use std::fs::File;
 use std::io;
-use store::VectorFile;
-use vecmath::Quantized32Embedding;
 use vecmath::EMBEDDING_BYTE_LENGTH;
 use vecmath::EMBEDDING_LENGTH;
 
@@ -45,7 +40,6 @@ use rayon::prelude::*;
 
 use crate::batch::index_domain;
 use crate::utils::{test_quantization, QuantizationStatistics};
-use crate::vecmath::Quantized16Embedding;
 
 use {indexer::create_index_name, vecmath::empty_embedding, vectors::VectorStore};
 

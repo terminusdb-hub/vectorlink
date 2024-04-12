@@ -1,44 +1,25 @@
 use std::{
-    any::Any,
     io,
     ops::{Deref, DerefMut, Range},
     path::Path,
-    sync::{Arc, RwLock},
+    sync::RwLock,
 };
 
 use urlencoding::encode;
+use vectorlink_store::{
+    file::{ImmutableVectorFile, VectorFile},
+    loader::SequentialVectorLoader,
+    range::LoadedSizedVectorRange,
+};
 
-use crate::store::{ImmutableVectorFile, LoadedVectorRange, SequentialVectorLoader, VectorFile};
+use crate::vecmath::EMBEDDING_BYTE_LENGTH;
 
-pub trait GenericDomain: 'static + Any + Send + Sync {
-    fn name(&self) -> &str;
-    fn num_vecs(&self) -> usize;
-}
-
-pub fn downcast_generic_domain<T: 'static + Send + Sync>(
-    domain: Arc<dyn GenericDomain>,
-) -> Arc<Domain<T>> {
-    Arc::downcast::<Domain<T>>(domain)
-        .expect("Could not downcast domain to expected embedding size")
-}
-
-pub struct Domain<T> {
+pub struct Domain {
     name: String,
-    file: RwLock<VectorFile<T>>,
+    file: RwLock<VectorFile>,
 }
 
-impl<T: 'static + Copy + Send + Sync> GenericDomain for Domain<T> {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn num_vecs(&self) -> usize {
-        self.file().num_vecs()
-    }
-}
-
-#[allow(unused)]
-impl<T: Copy> Domain<T> {
+impl Domain {
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -51,7 +32,8 @@ impl<T: Copy> Domain<T> {
         let mut path = dir.as_ref().to_path_buf();
         let encoded_name = encode(name);
         path.push(format!("{encoded_name}.vecs"));
-        let file = RwLock::new(VectorFile::open_create(&path, true)?);
+        // TODO: this place should read the embedding length from a configuration file
+        let file = RwLock::new(VectorFile::open_create(&path, EMBEDDING_BYTE_LENGTH, true)?);
 
         Ok(Domain {
             name: name.to_string(),
@@ -59,51 +41,53 @@ impl<T: Copy> Domain<T> {
         })
     }
 
-    pub fn file<'a>(&'a self) -> impl Deref<Target = VectorFile<T>> + 'a {
+    pub fn file(&self) -> impl Deref<Target = VectorFile> + '_ {
         self.file.read().unwrap()
     }
 
-    fn file_mut<'a>(&'a self) -> impl DerefMut<Target = VectorFile<T>> + 'a {
+    fn file_mut(&self) -> impl DerefMut<Target = VectorFile> + '_ {
         self.file.write().unwrap()
     }
 
-    pub fn immutable_file(&self) -> ImmutableVectorFile<T> {
+    pub fn immutable_file(&self) -> ImmutableVectorFile {
         self.file().as_immutable()
     }
 
-    fn add_vecs<'a, I: Iterator<Item = &'a T>>(&self, vecs: I) -> io::Result<(usize, usize)>
+    #[allow(unused)]
+    fn add_vecs<'a, T, I: Iterator<Item = &'a T>>(&self, vecs: I) -> io::Result<(usize, usize)>
     where
-        T: 'a,
+        T: 'a + Copy,
     {
         let mut vector_file = self.file_mut();
         let old_len = vector_file.num_vecs();
-        let count = vector_file.append_vectors(vecs)?;
+        let count = vector_file.as_sized_mut().append_vectors(vecs)?;
 
         Ok((old_len, count))
     }
 
     pub fn concatenate_file<P: AsRef<Path>>(&self, path: P) -> io::Result<(usize, usize)> {
-        let read_vector_file = VectorFile::open(path, true)?;
+        let mut self_file = self.file_mut();
+        let read_vector_file = VectorFile::open(path, self_file.vector_byte_size(), true)?;
         let old_size = self.num_vecs();
-        Ok((
-            old_size,
-            self.file_mut().append_vector_file(&read_vector_file)?,
-        ))
+        Ok((old_size, self_file.append_vector_file(&read_vector_file)?))
     }
 
-    pub fn vec(&self, id: usize) -> io::Result<T> {
-        Ok(self.file().vec(id)?)
+    pub fn load_vec<T: Copy>(&self, id: usize) -> io::Result<T> {
+        self.file().as_sized().vec(id)
     }
 
-    pub fn vec_range(&self, range: Range<usize>) -> io::Result<LoadedVectorRange<T>> {
-        self.file().vector_range(range)
+    pub fn vec_range<T: Copy>(&self, range: Range<usize>) -> io::Result<LoadedSizedVectorRange<T>> {
+        self.file().as_sized().vector_range(range)
     }
 
-    pub fn all_vecs(&self) -> io::Result<LoadedVectorRange<T>> {
-        self.file().all_vectors()
+    pub fn all_vecs<T: Copy>(&self) -> io::Result<LoadedSizedVectorRange<T>> {
+        self.file().as_sized().all_vectors()
     }
 
-    pub fn vector_chunks(&self, chunk_size: usize) -> io::Result<SequentialVectorLoader<T>> {
+    pub fn vector_chunks<T: Copy>(
+        &self,
+        chunk_size: usize,
+    ) -> io::Result<SequentialVectorLoader<T>> {
         self.file().vector_chunks(chunk_size)
     }
 }

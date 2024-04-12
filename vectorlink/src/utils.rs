@@ -36,7 +36,7 @@ pub fn test_quantization<
 ) -> QuantizationStatistics {
     let c = hnsw.quantized_comparator();
     let quantized_vecs = c.data().vecs();
-    let mut cursor: &[[u16; QUANTIZED_SIZE]] = &quantized_vecs;
+    let mut cursor: &[[u16; QUANTIZED_SIZE]] = quantized_vecs;
     let quantizer = hnsw.quantizer();
     // sample_avg = sum(errors)/|errors|
     // sample_var = sum((error - sample_avg)^2)/|errors|

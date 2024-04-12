@@ -20,20 +20,14 @@ use urlencoding::encode;
 
 use crate::{
     comparator::{
-        Centroid16Comparator, Centroid32Comparator, Centroid4Comparator, Centroid8Comparator,
-        DiskOpenAIComparator, OpenAIComparator, Quantized16Comparator, Quantized32Comparator,
-        Quantized4Comparator, Quantized8Comparator,
+        Centroid16Comparator, DiskOpenAIComparator, OpenAIComparator, Quantized16Comparator,
     },
     configuration::HnswConfiguration,
     domain::Domain,
     indexer::{create_index_name, index_serialization_path},
     openai::{embeddings_for, EmbeddingError, Model},
     server::Operation,
-    vecmath::{
-        Embedding, CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH, CENTROID_8_LENGTH,
-        EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_32_EMBEDDING_LENGTH,
-        QUANTIZED_4_EMBEDDING_LENGTH, QUANTIZED_8_EMBEDDING_LENGTH,
-    },
+    vecmath::{Embedding, CENTROID_16_LENGTH, EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH},
     vectors::VectorStore,
 };
 
@@ -268,7 +262,7 @@ pub async fn index_using_operations_and_vectors<
 }
 
 async fn perform_indexing(
-    domain_obj: Arc<Domain<Embedding>>,
+    domain_obj: Arc<Domain>,
     offset: u64,
     count: usize,
     quantize_hnsw: bool,
@@ -289,7 +283,7 @@ async fn perform_indexing(
         let number_of_centroids = 65_535;
         let c = DiskOpenAIComparator::new(
             domain_obj.name().to_owned(),
-            Arc::new(domain_obj.immutable_file()),
+            Arc::new(domain_obj.immutable_file().into_sized()),
         );
         let quantized_hnsw: QuantizedHnsw<
             EMBEDDING_LENGTH,

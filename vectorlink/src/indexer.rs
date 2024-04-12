@@ -4,7 +4,6 @@ use crate::{
     configuration::OpenAIHnsw,
     openai::{embeddings_for, EmbeddingError, Model},
     server::Operation,
-    store::LoadedVectorRange,
     vecmath::{self, Embedding},
     vectors::VectorStore,
 };
@@ -21,12 +20,13 @@ use std::{
 use thiserror::Error;
 use tokio::task::JoinError;
 use urlencoding::{decode, encode};
+use vectorlink_store::range::LoadedSizedVectorRange;
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct LoadedVec {
-    range: Arc<LoadedVectorRange<Embedding>>,
+    range: Arc<LoadedSizedVectorRange<Embedding>>,
     vec: usize,
 }
 
@@ -52,7 +52,7 @@ impl Deref for LoadedVec {
         // ourselves hold one such reference, this won't happen for
         // the lifetime of LoadedVecl.
 
-        unsafe { self.range.vec(self.vec) }
+        unsafe { &self.range[self.vec] }
     }
 }
 
@@ -200,14 +200,13 @@ impl PointQuery {
 pub fn search(p: &Point, mut num: usize, hnsw: &OpenAIHnsw) -> Vec<PointQuery> {
     let ef = num.max(100);
     let output = hnsw.search(p.abstract_vector(), ef, 2);
-    let points = output
+    output
         .into_iter()
         .map(|elt| PointQuery {
             id: elt.0 .0,
             distance: elt.1,
         })
-        .collect();
-    points
+        .collect()
 }
 
 pub fn index_serialization_path<P: AsRef<Path>>(path: P, name: &str) -> PathBuf {

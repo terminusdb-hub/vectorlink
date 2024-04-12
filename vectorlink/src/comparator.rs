@@ -4,9 +4,7 @@ use parallel_hnsw::pq::{
 };
 use rand::distributions::Uniform;
 use rand::{thread_rng, Rng};
-use rayon::iter::{
-    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
-};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs::OpenOptions;
@@ -14,10 +12,11 @@ use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
+use vectorlink_store::file::{ImmutableSizedVectorFile, VectorFile};
+use vectorlink_store::range::LoadedSizedVectorRange;
 
 use parallel_hnsw::{pq, Comparator, Serializable, SerializationError, VectorId};
 
-use crate::store::{ImmutableVectorFile, LoadedVectorRange, VectorFile};
 use crate::vecmath::{
     self, normalized_cosine_distance_1024, Embedding1024, EuclideanDistance16,
     EuclideanDistance16For1024, EuclideanDistance32, EuclideanDistance4, EuclideanDistance8,
@@ -34,11 +33,11 @@ use crate::{
 #[derive(Clone)]
 pub struct DiskOpenAIComparator {
     domain: String,
-    vectors: Arc<ImmutableVectorFile<Embedding>>,
+    vectors: Arc<ImmutableSizedVectorFile<Embedding>>,
 }
 
 impl DiskOpenAIComparator {
-    pub fn new(domain: String, vectors: Arc<ImmutableVectorFile<Embedding>>) -> Self {
+    pub fn new(domain: String, vectors: Arc<ImmutableSizedVectorFile<Embedding>>) -> Self {
         Self { domain, vectors }
     }
 }
@@ -88,7 +87,7 @@ impl Serializable for DiskOpenAIComparator {
         let domain = store.get_domain(&domain_name)?;
         Ok(DiskOpenAIComparator {
             domain: domain.name().to_owned(),
-            vectors: Arc::new(domain.immutable_file()),
+            vectors: Arc::new(domain.immutable_file().into_sized()),
         })
     }
 }
@@ -99,13 +98,13 @@ impl pq::VectorSelector for DiskOpenAIComparator {
     fn selection(&self, size: usize) -> Vec<Self::T> {
         // TODO do something else for sizes close to number of vecs
         if size >= self.vectors.num_vecs() {
-            return self.vectors.all_vectors().unwrap().clone().into_vec();
+            return self.vectors.all_vectors().unwrap().vecs().to_vec();
         }
         let mut rng = thread_rng();
         let mut set = HashSet::new();
         let range = Uniform::from(0_usize..self.vectors.num_vecs());
         while set.len() != size {
-            let candidate = rng.sample(&range);
+            let candidate = rng.sample(range);
             set.insert(candidate);
         }
 
@@ -125,11 +124,11 @@ impl pq::VectorSelector for DiskOpenAIComparator {
 #[derive(Clone)]
 pub struct Disk1024Comparator {
     domain: String,
-    vectors: Arc<ImmutableVectorFile<Embedding1024>>,
+    vectors: Arc<ImmutableSizedVectorFile<Embedding1024>>,
 }
 
 impl Disk1024Comparator {
-    pub fn new(domain: String, vectors: Arc<ImmutableVectorFile<Embedding1024>>) -> Self {
+    pub fn new(domain: String, vectors: Arc<ImmutableSizedVectorFile<Embedding1024>>) -> Self {
         Self { domain, vectors }
     }
 }
@@ -176,10 +175,10 @@ impl Serializable for Disk1024Comparator {
         let mut contents = String::new();
         comparator_file.read_to_string(&mut contents)?;
         let ComparatorMeta { domain_name, .. } = serde_json::from_str(&contents)?;
-        let domain = store.get_domain_1024(&domain_name)?;
+        let domain = store.get_domain(&domain_name)?;
         Ok(Disk1024Comparator {
             domain: domain.name().to_owned(),
-            vectors: Arc::new(domain.immutable_file()),
+            vectors: Arc::new(domain.immutable_file().into_sized()),
         })
     }
 }
@@ -190,13 +189,13 @@ impl pq::VectorSelector for Disk1024Comparator {
     fn selection(&self, size: usize) -> Vec<Self::T> {
         // TODO do something else for sizes close to number of vecs
         if size >= self.vectors.num_vecs() {
-            return self.vectors.all_vectors().unwrap().clone().into_vec();
+            return self.vectors.all_vectors().unwrap().vecs().to_vec();
         }
         let mut rng = thread_rng();
         let mut set = HashSet::new();
         let range = Uniform::from(0_usize..self.vectors.num_vecs());
         while set.len() != size {
-            let candidate = rng.sample(&range);
+            let candidate = rng.sample(range);
             set.insert(candidate);
         }
 
@@ -216,11 +215,11 @@ impl pq::VectorSelector for Disk1024Comparator {
 #[derive(Clone)]
 pub struct OpenAIComparator {
     domain_name: String,
-    range: Arc<LoadedVectorRange<Embedding>>,
+    range: Arc<LoadedSizedVectorRange<Embedding>>,
 }
 
 impl OpenAIComparator {
-    pub fn new(domain_name: String, range: Arc<LoadedVectorRange<Embedding>>) -> Self {
+    pub fn new(domain_name: String, range: Arc<LoadedSizedVectorRange<Embedding>>) -> Self {
         Self { domain_name, range }
     }
 }
@@ -236,7 +235,7 @@ impl Comparator for OpenAIComparator {
     type Borrowable<'a> = &'a Embedding
         where Self: 'a;
     fn lookup(&self, v: VectorId) -> &Embedding {
-        self.range.vec(v.0)
+        &self.range[v.0]
     }
 
     fn compare_raw(&self, v1: &Embedding, v2: &Embedding) -> f32 {
@@ -247,8 +246,11 @@ impl Comparator for OpenAIComparator {
 impl Serializable for OpenAIComparator {
     type Params = Arc<VectorStore>;
     fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
-        let mut comparator_file: std::fs::File =
-            OpenOptions::new().write(true).create(true).open(path)?;
+        let mut comparator_file: std::fs::File = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
         eprintln!("opened comparator serialize file");
         // How do we get this value?
         let comparator = ComparatorMeta {
@@ -428,23 +430,26 @@ impl MemoizedPartialDistances {
             "for size {} we figured {memoized_array_length}",
             vectors.len()
         );
+        let size = vectors.len();
         let mut partial_distances: Vec<bf16> = Vec::with_capacity(memoized_array_length);
+        {
+            let partial_distances_uninit = partial_distances.spare_capacity_mut();
+            partial_distances_uninit
+                .par_iter_mut()
+                .enumerate()
+                .for_each(|(c, elt)| {
+                    let (i, j) = offset_to_index(size, c);
+                    if i > 65535 || j > 65535 {
+                        panic!("oh no {i} {j}");
+                    }
+                    elt.write(bf16::from_f32(
+                        partial_distance_calculator.partial_distance(&vectors[i], &vectors[j]),
+                    ));
+                });
+        }
         unsafe {
             partial_distances.set_len(memoized_array_length);
         }
-        let size = vectors.len();
-        partial_distances
-            .par_iter_mut()
-            .enumerate()
-            .for_each(|(c, elt)| {
-                let (i, j) = offset_to_index(size, c);
-                if i > 65535 || j > 65535 {
-                    panic!("oh no {i} {j}");
-                }
-                *elt = bf16::from_f32(
-                    partial_distance_calculator.partial_distance(&vectors[i], &vectors[j]),
-                );
-            });
 
         Self {
             partial_distances,
@@ -468,7 +473,7 @@ impl MemoizedPartialDistances {
 
 pub struct ArrayCentroidComparator<const N: usize, C> {
     distances: Arc<MemoizedPartialDistances>,
-    centroids: Arc<LoadedVectorRange<[f32; N]>>,
+    centroids: Arc<LoadedSizedVectorRange<[f32; N]>>,
     calculator: PhantomData<C>,
 }
 
@@ -497,7 +502,10 @@ impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default + Sync>
         let len = centroids.len();
         Self {
             distances: Arc::new(MemoizedPartialDistances::new(C::default(), &centroids)),
-            centroids: Arc::new(LoadedVectorRange::new(centroids, 0..len)),
+            centroids: Arc::new(LoadedSizedVectorRange::new(
+                0..len,
+                centroids.into_boxed_slice(),
+            )),
             calculator: PhantomData,
         }
     }
@@ -532,8 +540,10 @@ impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default + Sync> Seria
     type Params = ();
 
     fn serialize<P: AsRef<Path>>(&self, path: P) -> Result<(), SerializationError> {
-        let mut vector_file: VectorFile<[f32; N]> = VectorFile::create(path, true)?;
-        vector_file.append_vector_range(self.centroids.vecs())?;
+        let mut vector_file = VectorFile::create_size::<_, [f32; N]>(path, true)?;
+        vector_file
+            .as_sized_mut()
+            .append_vector_range(self.centroids.vecs())?;
 
         Ok(())
     }
@@ -542,8 +552,8 @@ impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default + Sync> Seria
         path: P,
         _params: Self::Params,
     ) -> Result<Self, SerializationError> {
-        let vector_file: VectorFile<[f32; N]> = VectorFile::open(path, true)?;
-        let centroids = Arc::new(vector_file.all_vectors()?);
+        let vector_file = VectorFile::open_size::<_, [f32; N]>(path, true)?;
+        let centroids = Arc::new(vector_file.as_sized().all_vectors()?);
 
         Ok(Self {
             distances: Arc::new(MemoizedPartialDistances::new(
@@ -558,13 +568,13 @@ impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default + Sync> Seria
 
 pub trait QuantizedData {
     type Quantized: Copy;
-    fn data(&self) -> &Arc<LoadedVectorRange<Self::Quantized>>;
+    fn data(&self) -> &Arc<LoadedSizedVectorRange<Self::Quantized>>;
 }
 
 #[derive(Clone)]
 pub struct Quantized32Comparator {
     pub cc: Centroid32Comparator,
-    pub data: Arc<LoadedVectorRange<Quantized32Embedding>>,
+    pub data: Arc<LoadedSizedVectorRange<Quantized32Embedding>>,
 }
 
 impl QuantizedComparatorConstructor for Quantized32Comparator {
@@ -581,7 +591,7 @@ impl QuantizedComparatorConstructor for Quantized32Comparator {
 impl QuantizedData for Quantized32Comparator {
     type Quantized = Quantized32Embedding;
 
-    fn data(&self) -> &Arc<LoadedVectorRange<Self::Quantized>> {
+    fn data(&self) -> &Arc<LoadedSizedVectorRange<Self::Quantized>> {
         &self.data
     }
 }
@@ -589,7 +599,7 @@ impl QuantizedData for Quantized32Comparator {
 #[derive(Clone)]
 pub struct Quantized16Comparator {
     pub cc: Centroid16Comparator,
-    pub data: Arc<LoadedVectorRange<Quantized16Embedding>>,
+    pub data: Arc<LoadedSizedVectorRange<Quantized16Embedding>>,
 }
 
 impl QuantizedComparatorConstructor for Quantized16Comparator {
@@ -606,7 +616,7 @@ impl QuantizedComparatorConstructor for Quantized16Comparator {
 impl QuantizedData for Quantized16Comparator {
     type Quantized = Quantized16Embedding;
 
-    fn data(&self) -> &Arc<LoadedVectorRange<Self::Quantized>> {
+    fn data(&self) -> &Arc<LoadedSizedVectorRange<Self::Quantized>> {
         &self.data
     }
 }
@@ -614,7 +624,7 @@ impl QuantizedData for Quantized16Comparator {
 #[derive(Clone)]
 pub struct Quantized8Comparator {
     pub cc: Centroid8Comparator,
-    pub data: Arc<LoadedVectorRange<Quantized8Embedding>>,
+    pub data: Arc<LoadedSizedVectorRange<Quantized8Embedding>>,
 }
 
 impl QuantizedComparatorConstructor for Quantized8Comparator {
@@ -631,7 +641,7 @@ impl QuantizedComparatorConstructor for Quantized8Comparator {
 #[derive(Clone)]
 pub struct Quantized4Comparator {
     pub cc: Centroid4Comparator,
-    pub data: Arc<LoadedVectorRange<Quantized4Embedding>>,
+    pub data: Arc<LoadedSizedVectorRange<Quantized4Embedding>>,
 }
 
 impl QuantizedComparatorConstructor for Quantized4Comparator {
@@ -648,7 +658,7 @@ impl QuantizedComparatorConstructor for Quantized4Comparator {
 impl QuantizedData for Quantized4Comparator {
     type Quantized = Quantized4Embedding;
 
-    fn data(&self) -> &Arc<LoadedVectorRange<Self::Quantized>> {
+    fn data(&self) -> &Arc<LoadedSizedVectorRange<Self::Quantized>> {
         &self.data
     }
 }
@@ -656,7 +666,7 @@ impl QuantizedData for Quantized4Comparator {
 impl QuantizedData for Quantized8Comparator {
     type Quantized = Quantized8Embedding;
 
-    fn data(&self) -> &Arc<LoadedVectorRange<Self::Quantized>> {
+    fn data(&self) -> &Arc<LoadedSizedVectorRange<Self::Quantized>> {
         &self.data
     }
 }
@@ -724,8 +734,11 @@ impl Serializable for Quantized32Comparator {
         std::fs::create_dir_all(&path_buf)?;
 
         let vector_path = path_buf.join("vectors");
-        let mut vector_file = VectorFile::create(vector_path, true)?;
-        vector_file.append_vector_range(self.data.vecs())?;
+        let mut vector_file =
+            VectorFile::create_size::<_, Quantized32Embedding>(vector_path, true)?;
+        vector_file
+            .as_sized_mut()
+            .append_vector_range(self.data.vecs())?;
         Ok(())
     }
 
@@ -733,8 +746,8 @@ impl Serializable for Quantized32Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open(vector_path, true)?;
-        let range = vector_file.all_vectors()?;
+        let vector_file = VectorFile::open_size::<_, Quantized32Embedding>(vector_path, true)?;
+        let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
         Ok(Self { cc, data })
@@ -756,7 +769,7 @@ impl pq::VectorStore for Quantized32Comparator {
         }));
         let end = new_contents.len();
 
-        let data = LoadedVectorRange::new(new_contents, 0..end);
+        let data = LoadedSizedVectorRange::new(0..end, new_contents.into_boxed_slice());
         self.data = Arc::new(data);
 
         vectors
@@ -766,7 +779,7 @@ impl pq::VectorStore for Quantized32Comparator {
 #[derive(Clone)]
 pub struct Quantized16Comparator1024 {
     pub cc: Centroid16Comparator1024,
-    pub data: Arc<LoadedVectorRange<Quantized16Embedding1024>>,
+    pub data: Arc<LoadedSizedVectorRange<Quantized16Embedding1024>>,
 }
 
 impl QuantizedComparatorConstructor for Quantized16Comparator1024 {
@@ -783,7 +796,7 @@ impl QuantizedComparatorConstructor for Quantized16Comparator1024 {
 impl QuantizedData for Quantized16Comparator1024 {
     type Quantized = Quantized16Embedding1024;
 
-    fn data(&self) -> &Arc<LoadedVectorRange<Self::Quantized>> {
+    fn data(&self) -> &Arc<LoadedSizedVectorRange<Self::Quantized>> {
         &self.data
     }
 }
@@ -821,8 +834,11 @@ impl Serializable for Quantized16Comparator1024 {
         std::fs::create_dir_all(&path_buf)?;
 
         let vector_path = path_buf.join("vectors");
-        let mut vector_file = VectorFile::create(vector_path, true)?;
-        vector_file.append_vector_range(self.data.vecs())?;
+        let mut vector_file =
+            VectorFile::create_size::<_, Quantized16Embedding>(vector_path, true)?;
+        vector_file
+            .as_sized_mut()
+            .append_vector_range(self.data.vecs())?;
         Ok(())
     }
 
@@ -830,8 +846,8 @@ impl Serializable for Quantized16Comparator1024 {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open(vector_path, true)?;
-        let range = vector_file.all_vectors()?;
+        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
         Ok(Self { cc, data })
@@ -853,7 +869,7 @@ impl pq::VectorStore for Quantized16Comparator1024 {
         }));
         let end = new_contents.len();
 
-        let data = LoadedVectorRange::new(new_contents, 0..end);
+        let data = LoadedSizedVectorRange::new(0..end, new_contents.into_boxed_slice());
         self.data = Arc::new(data);
 
         vectors
@@ -869,13 +885,11 @@ impl pq::VectorSelector for OpenAIComparator {
         let mut set = HashSet::new();
         let range = Uniform::from(0_usize..size);
         while set.len() != size {
-            let candidate = rng.sample(&range);
+            let candidate = rng.sample(range);
             set.insert(candidate);
         }
 
-        set.into_iter()
-            .map(|index| *self.range.vec(index))
-            .collect()
+        set.into_iter().map(|index| self.range[index]).collect()
     }
 
     fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>> {
@@ -893,7 +907,7 @@ where
     type Borrowable<'a> = &'a Self::T;
 
     fn lookup(&self, v: VectorId) -> Self::Borrowable<'_> {
-        self.data.vec(v.0)
+        &self.data[v.0]
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
@@ -917,8 +931,11 @@ impl Serializable for Quantized16Comparator {
         std::fs::create_dir_all(&path_buf)?;
 
         let vector_path = path_buf.join("vectors");
-        let mut vector_file = VectorFile::create(vector_path, true)?;
-        vector_file.append_vector_range(self.data.vecs())?;
+        let mut vector_file =
+            VectorFile::create_size::<_, Quantized16Embedding>(vector_path, true)?;
+        vector_file
+            .as_sized_mut()
+            .append_vector_range(self.data.vecs())?;
         Ok(())
     }
 
@@ -926,8 +943,8 @@ impl Serializable for Quantized16Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open(vector_path, true)?;
-        let range = vector_file.all_vectors()?;
+        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
         Ok(Self { cc, data })
@@ -950,7 +967,7 @@ impl pq::VectorStore for Quantized16Comparator {
 
         let end = new_contents.len();
 
-        let data = LoadedVectorRange::new(new_contents, 0..end);
+        let data = LoadedSizedVectorRange::new(0..end, new_contents.into_boxed_slice());
         self.data = Arc::new(data);
 
         vectors
@@ -966,7 +983,7 @@ where
     type Borrowable<'a> = &'a Self::T;
 
     fn lookup(&self, v: VectorId) -> Self::Borrowable<'_> {
-        self.data.vec(v.0)
+        &self.data[v.0]
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
@@ -990,8 +1007,11 @@ impl Serializable for Quantized8Comparator {
         std::fs::create_dir_all(&path_buf)?;
 
         let vector_path = path_buf.join("vectors");
-        let mut vector_file = VectorFile::create(vector_path, true)?;
-        vector_file.append_vector_range(self.data.vecs())?;
+        let mut vector_file =
+            VectorFile::create_size::<_, Quantized16Embedding>(vector_path, true)?;
+        vector_file
+            .as_sized_mut()
+            .append_vector_range(self.data.vecs())?;
         Ok(())
     }
 
@@ -999,8 +1019,8 @@ impl Serializable for Quantized8Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open(vector_path, true)?;
-        let range = vector_file.all_vectors()?;
+        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
         Ok(Self { cc, data })
@@ -1023,7 +1043,7 @@ impl pq::VectorStore for Quantized8Comparator {
 
         let end = new_contents.len();
 
-        let data = LoadedVectorRange::new(new_contents, 0..end);
+        let data = LoadedSizedVectorRange::new(0..end, new_contents.into_boxed_slice());
         self.data = Arc::new(data);
 
         vectors
@@ -1039,7 +1059,7 @@ where
     type Borrowable<'a> = &'a Self::T;
 
     fn lookup(&self, v: VectorId) -> Self::Borrowable<'_> {
-        self.data.vec(v.0)
+        &self.data[v.0]
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
@@ -1063,8 +1083,11 @@ impl Serializable for Quantized4Comparator {
         std::fs::create_dir_all(&path_buf)?;
 
         let vector_path = path_buf.join("vectors");
-        let mut vector_file = VectorFile::create(vector_path, true)?;
-        vector_file.append_vector_range(self.data.vecs())?;
+        let mut vector_file =
+            VectorFile::create_size::<_, Quantized16Embedding>(vector_path, true)?;
+        vector_file
+            .as_sized_mut()
+            .append_vector_range(self.data.vecs())?;
         Ok(())
     }
 
@@ -1072,8 +1095,8 @@ impl Serializable for Quantized4Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open(vector_path, true)?;
-        let range = vector_file.all_vectors()?;
+        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
         Ok(Self { cc, data })
@@ -1096,7 +1119,7 @@ impl pq::VectorStore for Quantized4Comparator {
 
         let end = new_contents.len();
 
-        let data = LoadedVectorRange::new(new_contents, 0..end);
+        let data = LoadedSizedVectorRange::new(0..end, new_contents.into_boxed_slice());
         self.data = Arc::new(data);
 
         vectors
@@ -1105,14 +1128,11 @@ impl pq::VectorStore for Quantized4Comparator {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, RwLock};
-
     use parallel_hnsw::pq::CentroidComparatorConstructor;
     use parallel_hnsw::AbstractVector;
 
     use crate::comparator::Centroid32Comparator;
     use crate::comparator::Comparator;
-    use crate::comparator::MemoizedPartialDistances;
     #[test]
     fn centroid32test() {
         /*
