@@ -15,7 +15,6 @@ mod domain;
 mod indexer;
 mod openai;
 mod server;
-mod store;
 mod utils;
 mod vecmath;
 mod vectors;

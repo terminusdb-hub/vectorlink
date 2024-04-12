@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
 "vectorlink"
-]
+, "vectorlink-store"]
 
 [profile.release]
 debug = true
