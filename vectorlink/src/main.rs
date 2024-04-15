@@ -276,6 +276,12 @@ enum Commands {
         #[arg(short, long)]
         target_vector_size: usize,
     },
+    Normalize {
+        source_vector_file: String,
+        target_vector_file: String,
+        #[arg(short, long)]
+        vector_size: usize,
+    },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -755,6 +761,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     std::slice::from_raw_parts(
                         vec.as_ptr() as *mut u8,
                         target_vector_size * std::mem::size_of::<f32>(),
+                    )
+                };
+                target_vector_file.write_all(buf).unwrap();
+            }
+
+            target_vector_file.flush().unwrap();
+        }
+        Commands::Normalize {
+            source_vector_file,
+            target_vector_file,
+            vector_size,
+        } => {
+            let mut source_vector_file = File::open(source_vector_file).unwrap();
+            let mut target_vector_file = File::create(target_vector_file).unwrap();
+
+            let vector_byte_size = source_vector_file.metadata().unwrap().size() as usize;
+            assert!(vector_byte_size % vector_size == 0);
+            let source_vector_byte_size = vector_size * std::mem::size_of::<f32>();
+            let number_of_vecs = vector_byte_size / source_vector_byte_size;
+
+            let mut vec = vec![0.0f32; vector_size];
+
+            for i in 0..number_of_vecs {
+                if i % 100_000 == 0 {
+                    eprintln!("{i}/{number_of_vecs}");
+                }
+                let buf = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        vec.as_mut_ptr() as *mut u8,
+                        vector_size * std::mem::size_of::<f32>(),
+                    )
+                };
+                source_vector_file.read_exact(buf).unwrap();
+
+                let magnitude = vec.iter().map(|i| i * i).sum::<f32>().sqrt();
+
+                for elt in vec.iter_mut() {
+                    *elt /= magnitude;
+                }
+
+                let buf = unsafe {
+                    std::slice::from_raw_parts(
+                        vec.as_ptr() as *mut u8,
+                        vector_size * std::mem::size_of::<f32>(),
                     )
                 };
                 target_vector_file.write_all(buf).unwrap();
