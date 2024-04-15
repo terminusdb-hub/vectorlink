@@ -802,12 +802,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     unsafe { &mut *(vec.as_mut_ptr() as *mut Embedding) };
                 normalize_vec(embedding);
 
-                let magnitude = vec.iter().map(|i| i * i).sum::<f32>().sqrt();
-
-                for elt in vec.iter_mut() {
-                    *elt /= magnitude;
-                }
-
                 let buf = unsafe {
                     std::slice::from_raw_parts(
                         vec.as_ptr() as *mut u8,
