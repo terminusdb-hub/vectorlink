@@ -3,7 +3,7 @@ use parallel_hnsw::pq::{
     CentroidComparatorConstructor, PartialDistance, QuantizedComparatorConstructor,
 };
 use rand::distributions::Uniform;
-use rand::{thread_rng, Rng};
+use rand::prelude::*;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -96,10 +96,18 @@ impl pq::VectorSelector for DiskOpenAIComparator {
     type T = Embedding;
 
     fn selection(&self, size: usize) -> Vec<Self::T> {
-        // TODO do something else for sizes close to number of vecs
-        if size >= self.vectors.num_vecs() {
-            return self.vectors.all_vectors().unwrap().vecs().to_vec();
+        let num_vecs = self.vectors.num_vecs();
+        if size as f32 >= 0.3 * num_vecs as f32 {
+            let upper_bound = std::cmp::min(size, num_vecs);
+            let mut result = self.vectors.all_vectors().unwrap().vecs().to_vec();
+            let mut rng = thread_rng();
+            result.shuffle(&mut rng);
+            result.truncate(upper_bound);
+
+            return result;
         }
+        // we've deemed the size of the collection large enough to do
+        // a repeated sampling on until we fill up our quota.
         let mut rng = thread_rng();
         let mut set = HashSet::new();
         let range = Uniform::from(0_usize..self.vectors.num_vecs());
