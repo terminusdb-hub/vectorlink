@@ -40,6 +40,8 @@ use rayon::prelude::*;
 
 use crate::batch::index_domain;
 use crate::utils::{test_quantization, QuantizationStatistics};
+use crate::vecmath::normalize_vec;
+use crate::vecmath::Embedding;
 
 use {indexer::create_index_name, vecmath::empty_embedding, vectors::VectorStore};
 
@@ -778,6 +780,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let vector_byte_size = source_vector_file.metadata().unwrap().size() as usize;
             assert!(vector_byte_size % vector_size == 0);
+            assert!(vector_size == 1536);
             let source_vector_byte_size = vector_size * std::mem::size_of::<f32>();
             let number_of_vecs = vector_byte_size / source_vector_byte_size;
 
@@ -794,6 +797,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     )
                 };
                 source_vector_file.read_exact(buf).unwrap();
+
+                let embedding: &mut Embedding =
+                    unsafe { &mut *(vec.as_mut_ptr() as *mut Embedding) };
+                normalize_vec(embedding);
 
                 let magnitude = vec.iter().map(|i| i * i).sum::<f32>().sqrt();
 
