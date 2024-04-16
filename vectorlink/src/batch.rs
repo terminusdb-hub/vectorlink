@@ -295,7 +295,7 @@ async fn perform_indexing(
         > = QuantizedHnsw::new(number_of_centroids, c);
         HnswConfiguration::SmallQuantizedOpenAi(model, quantized_hnsw)
     } else {
-        let hnsw = Hnsw::generate(comparator, vecs, 24, 48, 12);
+        let hnsw = Hnsw::generate(comparator, vecs, 24, 48, 48);
         HnswConfiguration::UnquantizedOpenAi(model, hnsw)
     };
     eprintln!("done generating hnsw");
