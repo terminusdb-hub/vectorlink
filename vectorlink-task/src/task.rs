@@ -4,6 +4,10 @@ use async_trait::async_trait;
 use etcd_client::{Client, PutOptions, Txn, TxnOp};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::JoinHandle,
+};
 use tokio_stream::StreamExt;
 
 use crate::queue::Queue;
@@ -360,7 +364,9 @@ pub struct TaskLiveness<Init, Progress> {
     _progress: PhantomData<Progress>,
 }
 
-impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned> TaskLiveness<Init, Progress> {
+impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned + Send + 'static>
+    TaskLiveness<Init, Progress>
+{
     fn new(task: Task) -> Self {
         Self {
             task,
@@ -384,5 +390,76 @@ impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned> TaskLivenes
         self.task.set_progress(progress).await?;
 
         Ok(())
+    }
+
+    pub fn into_sync(mut self) -> Result<SyncTaskLiveness<Init, Progress>, serde_json::Error> {
+        let init = self.init()?;
+        let progress = self.progress()?;
+        let (send, mut receive) = mpsc::channel::<(
+            Option<Progress>,
+            oneshot::Sender<Result<(), TaskStateError>>,
+        )>(1);
+        let task = tokio::spawn(async move {
+            while let Some((progress, return_channel)) = receive.recv().await {
+                let result = match progress {
+                    Some(progress) => self.task.set_progress(progress).await,
+                    None => self.task.alive().await,
+                };
+                return_channel.send(result).unwrap();
+            }
+        });
+        Ok(SyncTaskLiveness {
+            channel: send,
+            task_handle: task,
+            init,
+            progress,
+        })
+    }
+}
+
+type ExchangeItem<Progress> = (
+    Option<Progress>,
+    oneshot::Sender<Result<(), TaskStateError>>,
+);
+
+pub struct SyncTaskLiveness<Init, Progress> {
+    channel: mpsc::Sender<ExchangeItem<Progress>>,
+    task_handle: JoinHandle<()>,
+    init: Option<Init>,
+    progress: Option<Progress>,
+}
+
+impl<Init, Progress> Drop for SyncTaskLiveness<Init, Progress> {
+    fn drop(&mut self) {
+        self.task_handle.abort();
+    }
+}
+
+impl<Init, Progress: Clone> SyncTaskLiveness<Init, Progress> {
+    pub fn init(&self) -> Option<&Init> {
+        self.init.as_ref()
+    }
+
+    pub fn progress(&self) -> Option<&Progress> {
+        self.progress.as_ref()
+    }
+
+    fn send_progress(&mut self, progress: Option<Progress>) -> Result<(), TaskStateError> {
+        let (return_channel_sender, return_channel) = oneshot::channel();
+        self.channel
+            .blocking_send((progress, return_channel_sender))
+            .unwrap();
+        return_channel.blocking_recv().unwrap()
+    }
+
+    pub fn set_progress(&mut self, progress: Progress) -> Result<(), TaskStateError> {
+        self.send_progress(Some(progress.clone()))?;
+        self.progress = Some(progress);
+
+        Ok(())
+    }
+
+    pub fn keepalive(&mut self) -> Result<(), TaskStateError> {
+        self.send_progress(None)
     }
 }
