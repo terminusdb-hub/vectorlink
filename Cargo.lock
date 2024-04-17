@@ -2184,12 +2184,23 @@ dependencies = [
 name = "vectorlink-task"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "etcd-client",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "vectorlink-worker"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "thiserror",
+ "tokio",
+ "vectorlink-task",
 ]
 
 [[package]]

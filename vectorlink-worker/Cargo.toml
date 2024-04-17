@@ -1,0 +1,10 @@
+[package]
+name = "vectorlink-worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.80"
+thiserror = "1.0.58"
+tokio = { version = "1.37.0", features = ["full"] }
+vectorlink-task = {path = "../vectorlink-task"}
