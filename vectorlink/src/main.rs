@@ -423,6 +423,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 size,
                 build_index.unwrap_or(true),
                 quantize_hnsw,
+                &mut (),
             )
             .await
             .unwrap()
@@ -446,8 +447,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 &commit,
                 size,
                 quantize_hnsw,
+                &mut (),
             )
-            .await
             .unwrap()
         }
         Commands::TestRecall {
@@ -535,6 +536,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 recall_proportion,
                 promotion_proportion,
                 None,
+                &mut (),
             );
 
             // TODO should write to staging first

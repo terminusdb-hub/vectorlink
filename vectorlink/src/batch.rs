@@ -8,7 +8,7 @@ use std::{
 
 use futures::{future, Stream, StreamExt, TryStreamExt};
 use parallel_hnsw::Serializable;
-use parallel_hnsw::{pq::QuantizedHnsw, SerializationError};
+use parallel_hnsw::{pq::QuantizedHnsw, progress::ProgressMonitor, SerializationError};
 use parallel_hnsw::{Hnsw, VectorId};
 use thiserror::Error;
 use tokio::{
@@ -193,6 +193,7 @@ pub async fn index_using_operations_and_vectors<
     id_offset: u64,
     quantize_hnsw: bool,
     model: Model,
+    progress: &mut dyn ProgressMonitor,
 ) -> Result<(), IndexingError> {
     // Start at last hnsw offset
     let mut progress_file_path: PathBuf = staging_path.as_ref().into();
@@ -257,11 +258,11 @@ pub async fn index_using_operations_and_vectors<
         model,
         staging_file,
         final_file,
+        progress,
     )
-    .await
 }
 
-async fn perform_indexing(
+fn perform_indexing(
     domain_obj: Arc<Domain>,
     offset: u64,
     count: usize,
@@ -269,6 +270,7 @@ async fn perform_indexing(
     model: Model,
     staging_file: PathBuf,
     final_file: PathBuf,
+    progress: &mut dyn ProgressMonitor,
 ) -> Result<(), IndexingError> {
     let comparator = OpenAIComparator::new(
         domain_obj.name().to_string(),
@@ -292,17 +294,17 @@ async fn perform_indexing(
             Centroid16Comparator,
             Quantized16Comparator,
             DiskOpenAIComparator,
-        > = QuantizedHnsw::new(number_of_centroids, c);
+        > = QuantizedHnsw::new(number_of_centroids, c, progress);
         HnswConfiguration::SmallQuantizedOpenAi(model, quantized_hnsw)
     } else {
-        let hnsw = Hnsw::generate(comparator, vecs, 24, 48, 12);
+        let hnsw = Hnsw::generate(comparator, vecs, 24, 48, 12, progress);
         HnswConfiguration::UnquantizedOpenAi(model, hnsw)
     };
     eprintln!("done generating hnsw");
     hnsw.serialize(&staging_file)?;
     eprintln!("done serializing hnsw");
     eprintln!("renaming {staging_file:?} to {final_file:?}");
-    tokio::fs::rename(&staging_file, &final_file).await?;
+    std::fs::rename(&staging_file, &final_file)?;
     eprintln!("renamed hnsw");
     Ok(())
 }
@@ -317,6 +319,7 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
     size: usize,
     build_index: bool,
     quantize_hnsw: bool,
+    progress: &mut dyn ProgressMonitor,
 ) -> Result<(), BatchError> {
     let mut staging_path: PathBuf = vectorlink_path.as_ref().into();
     staging_path.push(".staging");
@@ -368,6 +371,7 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
             id_offset,
             quantize_hnsw,
             model,
+            progress,
         )
         .await?;
     } else {
@@ -376,7 +380,7 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
     Ok(())
 }
 
-pub async fn index_domain<P: AsRef<Path>>(
+pub fn index_domain<P: AsRef<Path>>(
     api_key: &str,
     model: Model,
     vectorlink_path: P,
@@ -384,11 +388,12 @@ pub async fn index_domain<P: AsRef<Path>>(
     commit: &str,
     size: usize,
     quantize_hnsw: bool,
+    progress: &mut (dyn ProgressMonitor + Send),
 ) -> Result<(), IndexingError> {
     let mut staging_path: PathBuf = vectorlink_path.as_ref().into();
     staging_path.push(".staging");
     staging_path.push(&*encode(domain));
-    tokio::fs::create_dir_all(&staging_path).await?;
+    std::fs::create_dir_all(&staging_path)?;
 
     let vs_path_buf: PathBuf = vectorlink_path.as_ref().into();
     let vs: VectorStore = VectorStore::new(&vs_path_buf, size);
@@ -411,6 +416,6 @@ pub async fn index_domain<P: AsRef<Path>>(
         model,
         staging_file,
         final_file,
+        progress,
     )
-    .await
 }

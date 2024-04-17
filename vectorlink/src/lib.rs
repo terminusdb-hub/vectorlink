@@ -2,6 +2,7 @@
 #![feature(trait_upcasting)]
 #![feature(isqrt)]
 
+pub mod batch;
 pub mod comparator;
 pub mod configuration;
 pub mod indexer;

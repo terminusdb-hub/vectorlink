@@ -1,7 +1,9 @@
 use std::{fs::OpenOptions, path::PathBuf, sync::Arc};
 
 use itertools::Either;
-use parallel_hnsw::{pq::QuantizedHnsw, AbstractVector, Hnsw, Serializable, VectorId};
+use parallel_hnsw::{
+    pq::QuantizedHnsw, progress::ProgressMonitor, AbstractVector, Hnsw, Serializable, VectorId,
+};
 use rayon::iter::IndexedParallelIterator;
 use serde::{Deserialize, Serialize};
 
@@ -206,6 +208,7 @@ impl HnswConfiguration {
         recall_proportion: f32,
         promotion_proportion: f32,
         last_recall: Option<f32>,
+        progress: &mut dyn ProgressMonitor,
     ) -> f32 {
         match self {
             HnswConfiguration::QuantizedOpenAi(_model, q) => q.improve_index(
@@ -214,6 +217,7 @@ impl HnswConfiguration {
                 recall_proportion,
                 promotion_proportion,
                 last_recall,
+                progress,
             ),
             HnswConfiguration::SmallQuantizedOpenAi(_model, q) => q.improve_index(
                 promotion_threshold,
@@ -221,6 +225,7 @@ impl HnswConfiguration {
                 recall_proportion,
                 promotion_proportion,
                 last_recall,
+                progress,
             ),
             HnswConfiguration::UnquantizedOpenAi(_model, h) => h.improve_index(
                 promotion_threshold,
@@ -228,6 +233,7 @@ impl HnswConfiguration {
                 recall_proportion,
                 promotion_proportion,
                 last_recall,
+                progress,
             ),
             HnswConfiguration::SmallQuantizedOpenAi8(_, q) => q.improve_index(
                 promotion_threshold,
@@ -235,6 +241,7 @@ impl HnswConfiguration {
                 recall_proportion,
                 promotion_proportion,
                 last_recall,
+                progress,
             ),
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => q.improve_index(
                 promotion_threshold,
@@ -242,6 +249,7 @@ impl HnswConfiguration {
                 recall_proportion,
                 promotion_proportion,
                 last_recall,
+                progress,
             ),
             HnswConfiguration::Quantized1024By16(_, q) => q.improve_index(
                 promotion_threshold,
@@ -249,6 +257,7 @@ impl HnswConfiguration {
                 recall_proportion,
                 promotion_proportion,
                 last_recall,
+                progress,
             ),
         }
     }

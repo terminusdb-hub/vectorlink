@@ -1,55 +1,41 @@
+mod handler;
+
 use std::{thread::sleep, time::Duration};
 
 use async_trait::async_trait;
+use clap::Parser;
 use vectorlink_task::{
     queue::Queue,
     task::{TaskHandler, TaskLiveness},
 };
 
-struct MyCoolWorker;
+use crate::handler::VectorlinkTaskHandler;
 
-#[async_trait]
-impl TaskHandler for MyCoolWorker {
-    type Init = ();
-    type Progress = u64;
-    type Complete = String;
-    type Error = String;
+#[derive(Parser, Debug)]
+struct Command {
+    #[arg(short, long, default_value = "Vec::new()")]
+    etcd: Vec<String>,
+    #[arg(short, long, default_value = "vectorlink")]
+    service: String,
+    #[arg(short, long)]
+    identity: Option<String>,
+}
 
-    async fn initialize(
-        _live: TaskLiveness<Self::Init, Self::Progress>,
-    ) -> Result<Self::Progress, Self::Error> {
-        Ok(0)
-    }
-
-    async fn process(
-        mut live: TaskLiveness<Self::Init, Self::Progress>,
-    ) -> Result<Self::Complete, Self::Error> {
-        let start = live
-            .progress()
-            .map_err(|e| e.to_string())
-            .expect("serialization error")
-            .unwrap_or(0);
-        for i in start..=100 {
-            println!("{i}");
-            live.set_progress(i).await.expect("could not set progress!");
-            sleep(Duration::from_secs(1));
-        }
-
-        Ok("all done".to_string())
-    }
+fn generate_identity() -> String {
+    "worker".to_string()
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Command::parse();
     let mut queue = Queue::connect(
-        ["localhost:2379"],
+        args.etcd,
         None,
-        "vectorlink".to_owned(),
-        "worker".to_owned(),
+        args.service,
+        args.identity.unwrap_or_else(generate_identity),
     )
     .await?;
-
-    MyCoolWorker::process_queue(&mut queue).await?;
+    VectorlinkTaskHandler::process_queue(&mut queue).await?;
 
     unreachable!();
 }
