@@ -27,6 +27,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use configuration::HnswConfiguration;
 //use hnsw::Hnsw;
 use openai::Model;
+use parallel_hnsw::parameters::OptimizationParameters;
 use parallel_hnsw::AbstractVector;
 use parallel_hnsw::Serializable;
 use rand::prelude::*;
@@ -467,7 +468,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, size);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
-            let recall = hnsw.stochastic_recall(recall_proportion);
+            let mut optimization_parameters = OptimizationParameters::default();
+            optimization_parameters.recall_proportion = recall_proportion;
+            let recall = hnsw.stochastic_recall(optimization_parameters);
             eprintln!("Recall: {recall}");
         }
         Commands::Duplicates {
@@ -530,14 +533,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
-            hnsw.improve_index(
-                promotion_threshold,
-                neighbor_threshold,
-                recall_proportion,
-                promotion_proportion,
-                None,
-                &mut (),
-            );
+            let build_parameters = hnsw.build_parameters_for_improve_index();
+
+            hnsw.improve_index(build_parameters, None, &mut ());
 
             // TODO should write to staging first
             hnsw.serialize(hnsw_index_path)?;
@@ -562,8 +560,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
 
+            let bp = hnsw.build_parameters_for_improve_index();
             // TODO do a quick test recall here
-            hnsw.improve_neighbors(threshold, proportion, None);
+            hnsw.improve_neighbors(bp.optimization, None);
 
             // TODO should write to staging first
             hnsw.serialize(hnsw_index_path)?;
@@ -586,8 +585,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
-
-            if hnsw.promote_at_layer(layer, max_proportion) {
+            let bp = hnsw.build_parameters_for_improve_index();
+            if hnsw.promote_at_layer(layer, bp) {
                 eprintln!("promoted nodes at layer {layer}");
                 // TODO should write to staging first
                 hnsw.serialize(hnsw_index_path)?;
@@ -621,8 +620,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     Ok(()) => {
                         let converted_embedding: &[f32; EMBEDDING_LENGTH] =
                             unsafe { std::mem::transmute(&embedding) };
+                        let bp = hnsw.build_parameters_for_improve_index();
+                        let sp = bp.optimization.search;
                         let search_result: Vec<_> = hnsw
-                            .search(AbstractVector::Unstored(converted_embedding), 300, 1)
+                            .search(AbstractVector::Unstored(converted_embedding), sp)
                             .into_iter()
                             .filter(|r| r.1 < threshold)
                             .map(|r| (r.0 .0, r.1))

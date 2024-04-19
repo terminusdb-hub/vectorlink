@@ -7,7 +7,9 @@ use crate::{
     vecmath::{self, Embedding},
     vectors::VectorStore,
 };
-use parallel_hnsw::{AbstractVector, Hnsw, SerializationError, VectorId};
+use parallel_hnsw::{
+    parameters::SearchParameters, AbstractVector, Hnsw, SerializationError, VectorId,
+};
 use rand_pcg::Lcg128Xsl64;
 use rayon::prelude::*;
 use space::{Metric, Neighbor};
@@ -198,8 +200,7 @@ impl PointQuery {
 }
 
 pub fn search(p: &Point, mut num: usize, hnsw: &OpenAIHnsw) -> Vec<PointQuery> {
-    let ef = num.max(100);
-    let output = hnsw.search(p.abstract_vector(), ef, 2);
+    let output = hnsw.search(p.abstract_vector(), SearchParameters::default());
     output
         .into_iter()
         .map(|elt| PointQuery {

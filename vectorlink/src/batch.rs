@@ -7,7 +7,10 @@ use std::{
 };
 
 use futures::{future, Stream, StreamExt, TryStreamExt};
-use parallel_hnsw::Serializable;
+use parallel_hnsw::{
+    parameters::{BuildParameters, PqBuildParameters},
+    Serializable,
+};
 use parallel_hnsw::{pq::QuantizedHnsw, progress::ProgressMonitor, SerializationError};
 use parallel_hnsw::{Hnsw, VectorId};
 use thiserror::Error;
@@ -287,6 +290,7 @@ fn perform_indexing(
             domain_obj.name().to_owned(),
             Arc::new(domain_obj.immutable_file().into_sized()),
         );
+        let pq_build_parameters = PqBuildParameters::default();
         let quantized_hnsw: QuantizedHnsw<
             EMBEDDING_LENGTH,
             CENTROID_16_LENGTH,
@@ -294,10 +298,11 @@ fn perform_indexing(
             Centroid16Comparator,
             Quantized16Comparator,
             DiskOpenAIComparator,
-        > = QuantizedHnsw::new(number_of_centroids, c, progress);
+        > = QuantizedHnsw::new(number_of_centroids, c, pq_build_parameters, progress);
         HnswConfiguration::SmallQuantizedOpenAi(model, quantized_hnsw)
     } else {
-        let hnsw = Hnsw::generate(comparator, vecs, 24, 48, 12, progress);
+        let build_parameters = BuildParameters::default();
+        let hnsw = Hnsw::generate(comparator, vecs, build_parameters, progress);
         HnswConfiguration::UnquantizedOpenAi(model, hnsw)
     };
     eprintln!("done generating hnsw");
@@ -418,4 +423,118 @@ pub fn index_domain<P: AsRef<Path>>(
         final_file,
         progress,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+    use parallel_hnsw::{parameters::OptimizationParameters, pq::VectorSelector, Comparator};
+    use rand::{distributions::Uniform, prelude::*};
+    use vectorlink::vecmath::{normalize_vec, normalized_cosine_distance};
+
+    #[derive(Clone)]
+    pub struct MemoryOpenAIComparator {
+        domain: String,
+        vectors: Arc<Vec<Embedding>>,
+    }
+
+    impl MemoryOpenAIComparator {
+        pub fn new(domain: String, vectors: Arc<Vec<Embedding>>) -> Self {
+            Self { domain, vectors }
+        }
+    }
+
+    impl Comparator for MemoryOpenAIComparator {
+        type T = Embedding;
+        type Borrowable<'a> = &'a Embedding
+        where Self: 'a;
+        fn lookup(&self, v: VectorId) -> &Embedding {
+            &self.vectors[v.0]
+        }
+
+        fn compare_raw(&self, v1: &Embedding, v2: &Embedding) -> f32 {
+            normalized_cosine_distance(v1, v2)
+        }
+    }
+
+    impl Serializable for MemoryOpenAIComparator {
+        type Params = Arc<VectorStore>;
+        fn serialize<P: AsRef<Path>>(&self, _path: P) -> Result<(), SerializationError> {
+            todo!();
+        }
+
+        fn deserialize<P: AsRef<Path>>(
+            _path: P,
+            _store: Arc<VectorStore>,
+        ) -> Result<Self, SerializationError> {
+            todo!();
+        }
+    }
+
+    impl VectorSelector for MemoryOpenAIComparator {
+        type T = Embedding;
+
+        fn selection(&self, size: usize) -> Vec<Self::T> {
+            let num_vecs = self.vectors.len();
+            if size as f32 >= 0.3 * num_vecs as f32 {
+                let upper_bound = std::cmp::min(size, num_vecs);
+                let mut result = (*self.vectors).clone();
+                let mut rng = thread_rng();
+                result.shuffle(&mut rng);
+                result.truncate(upper_bound);
+
+                return result.to_vec();
+            }
+            // we've deemed the size of the collection large enough to do
+            // a repeated sampling on until we fill up our quota.
+            let mut rng = thread_rng();
+            let mut set = HashSet::new();
+            let range = Uniform::from(0_usize..self.vectors.len());
+            while set.len() != size {
+                let candidate = rng.sample(range);
+                set.insert(candidate);
+            }
+
+            set.into_iter().map(|index| self.vectors[index]).collect()
+        }
+
+        fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>> {
+            let res = self.vectors.chunks(1_000_000).map(|x| x.to_vec());
+            res
+        }
+    }
+
+    // where do a put temp files for testing?
+    #[test]
+    fn test_comparator16_pq() {
+        let vectors: Vec<Embedding> = (0..1_000_000)
+            .map(|i| {
+                let prng = StdRng::seed_from_u64(42_u64 + i as u64);
+                let range = Uniform::from(-1.0..1.0);
+                let v: Vec<f32> = prng.sample_iter(&range).take(1536).collect();
+                let mut buf = [0.0; 1536];
+                buf.copy_from_slice(&v);
+                normalize_vec(&mut buf);
+                buf
+            })
+            .collect();
+
+        let number_of_centroids = 65_535;
+        let c = MemoryOpenAIComparator::new("my domain".to_string(), Arc::new(vectors));
+        let pq_build_parameters = PqBuildParameters::default();
+        let quantized_hnsw: QuantizedHnsw<
+            EMBEDDING_LENGTH,
+            CENTROID_16_LENGTH,
+            QUANTIZED_16_EMBEDDING_LENGTH,
+            Centroid16Comparator,
+            Quantized16Comparator,
+            MemoryOpenAIComparator,
+        > = QuantizedHnsw::new(number_of_centroids, c, pq_build_parameters);
+
+        let op = OptimizationParameters::default();
+        let res = quantized_hnsw.stochastic_recall(op);
+        assert!(res > 0.97);
+    }
 }

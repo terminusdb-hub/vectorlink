@@ -2,7 +2,10 @@ use std::{fs::OpenOptions, path::PathBuf, sync::Arc};
 
 use itertools::Either;
 use parallel_hnsw::{
-    pq::QuantizedHnsw, progress::ProgressMonitor, AbstractVector, Hnsw, Serializable, VectorId,
+    parameters::{BuildParameters, OptimizationParameters, SearchParameters},
+    pq::QuantizedHnsw,
+    progress::ProgressMonitor,
+    AbstractVector, Hnsw, Serializable, VectorId,
 };
 use rayon::iter::IndexedParallelIterator;
 use serde::{Deserialize, Serialize};
@@ -160,25 +163,14 @@ impl HnswConfiguration {
     pub fn search(
         &self,
         v: AbstractVector<Embedding>,
-        number_of_candidates: usize,
-        probe_depth: usize,
+        search_parameters: SearchParameters,
     ) -> Vec<(VectorId, f32)> {
         match self {
-            HnswConfiguration::QuantizedOpenAi(_model, q) => {
-                q.search(v, number_of_candidates, probe_depth)
-            }
-            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
-                q.search(v, number_of_candidates, probe_depth)
-            }
-            HnswConfiguration::UnquantizedOpenAi(_model, h) => {
-                h.search(v, number_of_candidates, probe_depth)
-            }
-            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
-                q.search(v, number_of_candidates, probe_depth)
-            }
-            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
-                q.search(v, number_of_candidates, probe_depth)
-            }
+            HnswConfiguration::QuantizedOpenAi(_model, q) => q.search(v, search_parameters),
+            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => q.search(v, search_parameters),
+            HnswConfiguration::UnquantizedOpenAi(_model, h) => h.search(v, search_parameters),
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => q.search(v, search_parameters),
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => q.search(v, search_parameters),
             HnswConfiguration::Quantized1024By16(_, _q) => {
                 panic!();
             }
@@ -188,13 +180,10 @@ impl HnswConfiguration {
     pub fn search_1024(
         &self,
         v: AbstractVector<Embedding1024>,
-        number_of_candidates: usize,
-        probe_depth: usize,
+        search_parameters: SearchParameters,
     ) -> Vec<(VectorId, f32)> {
         match self {
-            HnswConfiguration::Quantized1024By16(_, q) => {
-                q.search(v, number_of_candidates, probe_depth)
-            }
+            HnswConfiguration::Quantized1024By16(_, q) => q.search(v, search_parameters),
             _ => {
                 panic!();
             }
@@ -203,112 +192,82 @@ impl HnswConfiguration {
 
     pub fn improve_index(
         &mut self,
-        promotion_threshold: f32,
-        neighbor_threshold: f32,
-        recall_proportion: f32,
-        promotion_proportion: f32,
+        build_parameters: BuildParameters,
         last_recall: Option<f32>,
         progress: &mut dyn ProgressMonitor,
     ) -> f32 {
         match self {
-            HnswConfiguration::QuantizedOpenAi(_model, q) => q.improve_index(
-                promotion_threshold,
-                neighbor_threshold,
-                recall_proportion,
-                promotion_proportion,
-                last_recall,
-                progress,
-            ),
-            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => q.improve_index(
-                promotion_threshold,
-                neighbor_threshold,
-                recall_proportion,
-                promotion_proportion,
-                last_recall,
-                progress,
-            ),
-            HnswConfiguration::UnquantizedOpenAi(_model, h) => h.improve_index(
-                promotion_threshold,
-                neighbor_threshold,
-                recall_proportion,
-                promotion_proportion,
-                last_recall,
-                progress,
-            ),
-            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => q.improve_index(
-                promotion_threshold,
-                neighbor_threshold,
-                recall_proportion,
-                promotion_proportion,
-                last_recall,
-                progress,
-            ),
-            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => q.improve_index(
-                promotion_threshold,
-                neighbor_threshold,
-                recall_proportion,
-                promotion_proportion,
-                last_recall,
-                progress,
-            ),
-            HnswConfiguration::Quantized1024By16(_, q) => q.improve_index(
-                promotion_threshold,
-                neighbor_threshold,
-                recall_proportion,
-                promotion_proportion,
-                last_recall,
-                progress,
-            ),
+            HnswConfiguration::QuantizedOpenAi(_model, q) => {
+                q.improve_index(build_parameters, last_recall, progress)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
+                q.improve_index(build_parameters, last_recall, progress)
+            }
+            HnswConfiguration::UnquantizedOpenAi(_model, h) => {
+                h.improve_index(build_parameters, last_recall, progress)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
+                q.improve_index(build_parameters, last_recall, progress)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
+                q.improve_index(build_parameters, last_recall, progress)
+            }
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                q.improve_index(build_parameters, last_recall, progress)
+            }
         }
     }
 
     pub fn improve_neighbors(
         &mut self,
-        threshold: f32,
-        recall: f32,
+        optimization_parameters: OptimizationParameters,
         last_recall: Option<f32>,
     ) -> f32 {
         match self {
             HnswConfiguration::QuantizedOpenAi(_model, q) => {
-                q.improve_neighbors(threshold, recall, last_recall)
+                q.improve_neighbors(optimization_parameters, last_recall)
             }
             HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
-                q.improve_neighbors(threshold, recall, last_recall)
+                q.improve_neighbors(optimization_parameters, last_recall)
             }
             HnswConfiguration::UnquantizedOpenAi(_model, h) => {
-                h.improve_neighbors(threshold, recall, last_recall)
+                h.improve_neighbors(optimization_parameters, last_recall)
             }
             HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
-                q.improve_neighbors(threshold, recall, last_recall)
+                q.improve_neighbors(optimization_parameters, last_recall)
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
-                q.improve_neighbors(threshold, recall, last_recall)
+                q.improve_neighbors(optimization_parameters, last_recall)
             }
             HnswConfiguration::Quantized1024By16(_, q) => {
-                q.improve_neighbors(threshold, recall, last_recall)
+                q.improve_neighbors(optimization_parameters, last_recall)
             }
         }
     }
 
-    pub fn promote_at_layer(&mut self, layer_from_top: usize, max_proportion: f32) -> bool {
+    pub fn promote_at_layer(
+        &mut self,
+        layer_from_top: usize,
+        build_parameters: BuildParameters,
+    ) -> bool {
         match self {
             HnswConfiguration::QuantizedOpenAi(_model, q) => {
-                q.promote_at_layer(layer_from_top, max_proportion)
+                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
             }
             HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
-                q.promote_at_layer(layer_from_top, max_proportion)
+                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
             }
             HnswConfiguration::UnquantizedOpenAi(_model, h) => {
-                h.promote_at_layer(layer_from_top, max_proportion)
+                h.promote_at_layer(layer_from_top, build_parameters, &mut ())
             }
             HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
-                q.promote_at_layer(layer_from_top, max_proportion)
+                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
-                q.promote_at_layer(layer_from_top, max_proportion)
+                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
             }
             HnswConfiguration::Quantized1024By16(_, q) => {
-                q.promote_at_layer(layer_from_top, max_proportion)
+                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
             }
         }
     }
@@ -359,18 +318,41 @@ impl HnswConfiguration {
         }
     }
 
-    pub fn stochastic_recall(&self, recall_proportion: f32) -> f32 {
+    pub fn stochastic_recall(&self, optimization_parameters: OptimizationParameters) -> f32 {
         match self {
-            HnswConfiguration::QuantizedOpenAi(_, q) => q.stochastic_recall(recall_proportion),
-            HnswConfiguration::SmallQuantizedOpenAi(_, q) => q.stochastic_recall(recall_proportion),
-            HnswConfiguration::UnquantizedOpenAi(_, h) => h.stochastic_recall(recall_proportion),
+            HnswConfiguration::QuantizedOpenAi(_, q) => {
+                q.stochastic_recall(optimization_parameters)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi(_, q) => {
+                q.stochastic_recall(optimization_parameters)
+            }
+            HnswConfiguration::UnquantizedOpenAi(_, h) => {
+                h.stochastic_recall(optimization_parameters)
+            }
             HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
-                q.stochastic_recall(recall_proportion)
+                q.stochastic_recall(optimization_parameters)
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
-                q.stochastic_recall(recall_proportion)
+                q.stochastic_recall(optimization_parameters)
             }
-            HnswConfiguration::Quantized1024By16(_, q) => q.stochastic_recall(recall_proportion),
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                q.stochastic_recall(optimization_parameters)
+            }
+        }
+    }
+
+    pub fn build_parameters_for_improve_index(&self) -> BuildParameters {
+        match self {
+            HnswConfiguration::QuantizedOpenAi(_, q) => q.build_parameters_for_improve_index(),
+            HnswConfiguration::SmallQuantizedOpenAi(_, q) => q.build_parameters_for_improve_index(),
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
+                q.build_parameters_for_improve_index()
+            }
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
+                q.build_parameters_for_improve_index()
+            }
+            HnswConfiguration::UnquantizedOpenAi(_, h) => h.build_parameters,
+            HnswConfiguration::Quantized1024By16(_, q) => q.build_parameters_for_improve_index(),
         }
     }
 }
