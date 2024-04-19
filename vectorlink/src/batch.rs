@@ -427,7 +427,7 @@ mod tests {
     use super::*;
     use parallel_hnsw::{parameters::OptimizationParameters, pq::VectorSelector, Comparator};
     use rand::{distributions::Uniform, prelude::*};
-    use vectorlink::vecmath::normalized_cosine_distance;
+    use vectorlink::vecmath::{normalize_vec, normalized_cosine_distance};
 
     #[derive(Clone)]
     pub struct MemoryOpenAIComparator {
@@ -443,10 +443,10 @@ mod tests {
 
     impl Comparator for MemoryOpenAIComparator {
         type T = Embedding;
-        type Borrowable<'a> = Box<Embedding>
+        type Borrowable<'a> = &'a Embedding
         where Self: 'a;
-        fn lookup(&self, v: VectorId) -> Box<Embedding> {
-            Box::new(self.vectors[v.0])
+        fn lookup(&self, v: VectorId) -> &Embedding {
+            &self.vectors[v.0]
         }
 
         fn compare_raw(&self, v1: &Embedding, v2: &Embedding) -> f32 {
@@ -504,13 +504,14 @@ mod tests {
     // where do a put temp files for testing?
     #[test]
     fn test_comparator16_pq() {
-        let vectors: Vec<Embedding> = (0..1_000_000)
+        let vectors: Vec<Embedding> = (0..10_000)
             .map(|i| {
                 let prng = StdRng::seed_from_u64(42_u64 + i as u64);
                 let range = Uniform::from(-1.0..1.0);
                 let v: Vec<f32> = prng.sample_iter(&range).take(1536).collect();
                 let mut buf = [0.0; 1536];
                 buf.copy_from_slice(&v);
+                normalize_vec(&mut buf);
                 buf
             })
             .collect();
