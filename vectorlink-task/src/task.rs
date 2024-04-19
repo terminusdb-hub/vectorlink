@@ -457,13 +457,16 @@ impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned + Send + 'st
                     ExchangeItemInner::SendKeepalive => self.task.alive().await,
                     ExchangeItemInner::KeepAliveContinuously(canary) => {
                         println!("time to start a continous keepalive!");
-                        tokio::spawn(keep_alive_continuously(
-                            self.task.client.clone(),
-                            self.task.lease.unwrap(),
-                            canary,
-                        ));
+                        let result = self.task.alive().await;
+                        if result.is_ok() {
+                            tokio::spawn(keep_alive_continuously(
+                                self.task.client.clone(),
+                                self.task.lease.unwrap(),
+                                canary,
+                            ));
+                        }
 
-                        Ok(())
+                        result
                     }
                 };
                 return_channel.send(result).unwrap();
@@ -477,19 +480,21 @@ impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned + Send + 'st
         })
     }
 
-    pub async fn guarded_keepalive(&self) -> LivenessGuard {
+    pub async fn guarded_keepalive(&self) -> Result<LivenessGuard, TaskStateError> {
         let canary = Arc::new(AtomicBool::new(true));
         let canary2 = canary.clone();
 
-        let client = self.task.client.clone();
+        let mut client = self.task.client.clone();
         let lease = self.task.lease.unwrap();
+
+        send_keep_alive(&mut client, lease).await?;
 
         tokio::spawn(keep_alive_continuously(client, lease, canary));
 
-        LivenessGuard {
+        Ok(LivenessGuard {
             canary: canary2,
             expecting_liveness: true,
-        }
+        })
     }
 }
 
@@ -561,16 +566,17 @@ impl<Init, Progress: Clone + Send + 'static> SyncTaskLiveness<Init, Progress> {
         Ok(result)
     }
 
-    pub fn guarded_keepalive(&mut self) -> LivenessGuard {
+    pub fn guarded_keepalive(&mut self) -> Result<LivenessGuard, TaskStateError> {
+        self.keepalive()?;
         let canary = Arc::new(AtomicBool::new(true));
         let canary2 = canary.clone();
         // result is safe to ignore here, as this always succeeds in the worker loop.
         let _ = self.send_progress(ExchangeItemInner::KeepAliveContinuously(canary));
 
-        LivenessGuard {
+        Ok(LivenessGuard {
             canary: canary2,
             expecting_liveness: true,
-        }
+        })
     }
 }
 

@@ -91,7 +91,7 @@ impl ProgressMonitor for TaskMonitor {
     }
 
     fn keep_alive(&mut self) -> Box<dyn std::any::Any> {
-        Box::new(self.0.guarded_keepalive())
+        Box::new(self.0.guarded_keepalive().expect("lease not live!"))
     }
 
     fn alive(&mut self) -> Result<(), Interrupt> {
