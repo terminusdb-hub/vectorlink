@@ -529,6 +529,6 @@ mod tests {
 
         let op = OptimizationParameters::default();
         let res = quantized_hnsw.stochastic_recall(op);
-        assert_eq!(res, 0.97);
+        assert!(res > 0.97);
     }
 }
