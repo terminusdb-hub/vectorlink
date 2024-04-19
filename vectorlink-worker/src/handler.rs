@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use tokio::task::block_in_place;
 use vectorlink::batch::index_domain;
 use vectorlink::openai::Model;
@@ -16,10 +17,7 @@ pub struct BuildIndexRequest {
     quantized: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub enum BuildIndexProgress {
-    Generate {},
-}
+// progress is just a json value for now
 
 #[derive(Serialize, Deserialize)]
 pub struct BuildIndexCompletion {
@@ -32,7 +30,7 @@ pub struct VectorlinkTaskHandler;
 impl TaskHandler for VectorlinkTaskHandler {
     type Init = BuildIndexRequest;
 
-    type Progress = BuildIndexProgress;
+    type Progress = Value;
 
     type Complete = BuildIndexCompletion;
 
@@ -41,7 +39,7 @@ impl TaskHandler for VectorlinkTaskHandler {
     async fn initialize(
         _live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Progress, Self::Error> {
-        Ok(BuildIndexProgress::Generate {})
+        Ok(json!({}))
     }
     async fn process(
         live: TaskLiveness<Self::Init, Self::Progress>,
@@ -77,17 +75,15 @@ impl TaskHandler for VectorlinkTaskHandler {
     }
 }
 
-struct TaskMonitor(SyncTaskLiveness<BuildIndexRequest, BuildIndexProgress>);
+struct TaskMonitor(SyncTaskLiveness<BuildIndexRequest, Value>);
 
 impl ProgressMonitor for TaskMonitor {
     fn update(
         &mut self,
-        _update: parallel_hnsw::progress::ProgressUpdate,
+        update: parallel_hnsw::progress::ProgressUpdate,
     ) -> Result<(), parallel_hnsw::progress::Interrupt> {
         let liveness = &mut self.0;
-        liveness
-            .set_progress(BuildIndexProgress::Generate {})
-            .map_err(|_| Interrupt)
+        liveness.set_progress(update.state).map_err(|_| Interrupt)
     }
 
     fn keep_alive(&mut self) -> Box<dyn std::any::Any> {

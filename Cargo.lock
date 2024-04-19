@@ -2198,6 +2198,7 @@ dependencies = [
  "clap",
  "parallel-hnsw",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "vectorlink",
