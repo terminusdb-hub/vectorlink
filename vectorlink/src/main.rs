@@ -533,8 +533,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
-            let build_parameters = hnsw.build_parameters_for_improve_index();
-
+            let mut build_parameters = hnsw.build_parameters_for_improve_index();
+            build_parameters.optimization.promotion_threshold = promotion_threshold;
+            build_parameters.optimization.promotion_proportion = promotion_proportion;
+            build_parameters.optimization.neighborhood_threshold = neighbor_threshold;
+            build_parameters.optimization.recall_proportion = recall_proportion;
             hnsw.improve_index(build_parameters, None, &mut ());
 
             // TODO should write to staging first
@@ -560,7 +563,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
 
-            let bp = hnsw.build_parameters_for_improve_index();
+            let mut bp = hnsw.build_parameters_for_improve_index();
+            bp.optimization.neighborhood_threshold = threshold;
+            bp.optimization.recall_proportion = proportion;
+
             // TODO do a quick test recall here
             hnsw.improve_neighbors(bp.optimization, None);
 
@@ -585,7 +591,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut hnsw: HnswConfiguration =
                 HnswConfiguration::deserialize(&hnsw_index_path, Arc::new(store)).unwrap();
-            let bp = hnsw.build_parameters_for_improve_index();
+            let mut bp = hnsw.build_parameters_for_improve_index();
+            bp.optimization.promotion_proportion = max_proportion;
             if hnsw.promote_at_layer(layer, bp) {
                 eprintln!("promoted nodes at layer {layer}");
                 // TODO should write to staging first
