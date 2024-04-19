@@ -7,7 +7,10 @@ use std::{
 };
 
 use futures::{future, Stream, StreamExt, TryStreamExt};
-use parallel_hnsw::Serializable;
+use parallel_hnsw::{
+    parameters::{BuildParameters, PqBuildParameters},
+    Serializable,
+};
 use parallel_hnsw::{pq::QuantizedHnsw, SerializationError};
 use parallel_hnsw::{Hnsw, VectorId};
 use thiserror::Error;
@@ -285,6 +288,7 @@ async fn perform_indexing(
             domain_obj.name().to_owned(),
             Arc::new(domain_obj.immutable_file().into_sized()),
         );
+        let pq_build_parameters = PqBuildParameters::default();
         let quantized_hnsw: QuantizedHnsw<
             EMBEDDING_LENGTH,
             CENTROID_16_LENGTH,
@@ -292,10 +296,11 @@ async fn perform_indexing(
             Centroid16Comparator,
             Quantized16Comparator,
             DiskOpenAIComparator,
-        > = QuantizedHnsw::new(number_of_centroids, c);
+        > = QuantizedHnsw::new(number_of_centroids, c, pq_build_parameters);
         HnswConfiguration::SmallQuantizedOpenAi(model, quantized_hnsw)
     } else {
-        let hnsw = Hnsw::generate(comparator, vecs, 24, 48, 24);
+        let build_parameters = BuildParameters::default();
+        let hnsw = Hnsw::generate(comparator, vecs, build_parameters);
         HnswConfiguration::UnquantizedOpenAi(model, hnsw)
     };
     eprintln!("done generating hnsw");

@@ -79,7 +79,8 @@ pub async fn handle_request(
     let embedding = embeddings[0];
 
     let vec = AbstractVector::Unstored(&embedding);
-    let results = state.hnsw.search(vec, 300, 2);
+    let bp = state.hnsw.build_parameters_for_improve_index();
+    let results = state.hnsw.search(vec, bp.optimization.search);
     let result: Vec<_> = results
         .into_iter()
         .map(|(v, d)| MatchResult {
