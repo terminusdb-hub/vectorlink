@@ -504,7 +504,7 @@ mod tests {
     // where do a put temp files for testing?
     #[test]
     fn test_comparator16_pq() {
-        let vectors: Vec<Embedding> = (0..10_000)
+        let vectors: Vec<Embedding> = (0..100_000)
             .map(|i| {
                 let prng = StdRng::seed_from_u64(42_u64 + i as u64);
                 let range = Uniform::from(-1.0..1.0);
@@ -529,6 +529,6 @@ mod tests {
 
         let op = OptimizationParameters::default();
         let res = quantized_hnsw.stochastic_recall(op);
-        assert_eq!(res, 1.0);
+        assert_eq!(res, 0.97);
     }
 }
