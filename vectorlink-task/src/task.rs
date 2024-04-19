@@ -14,7 +14,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
-    task::{self, JoinHandle},
+    task::JoinHandle,
 };
 use tokio_stream::StreamExt;
 
@@ -40,23 +40,44 @@ async fn get_task_state(client: &mut Client, task_key: &str) -> Result<TaskData,
     Ok(deserialized)
 }
 
-async fn send_keep_alive(client: &mut Client, lease: i64) -> Result<(), etcd_client::Error> {
+#[derive(Debug, Error)]
+#[error("Lease expired")]
+pub struct LeaseExpired;
+
+impl From<etcd_client::Error> for LeaseExpired {
+    fn from(_value: etcd_client::Error) -> Self {
+        Self
+    }
+}
+
+impl From<LeaseExpired> for TaskStateError {
+    fn from(_value: LeaseExpired) -> Self {
+        TaskStateError::LeaseExpired
+    }
+}
+
+async fn send_keep_alive(client: &mut Client, lease: i64) -> Result<(), LeaseExpired> {
     eprintln!("sending a keepalive");
     let (mut lease, mut lease_stream) = client.lease_keep_alive(lease).await?;
     lease.keep_alive().await?;
-    let _result = lease_stream
+    let result = lease_stream
         .try_next()
         .await?
         .expect("no keep alive confirmation received");
 
-    Ok(())
+    if result.ttl() == 0 {
+        eprintln!("!!!!LEASE EXPIRED!!!!!");
+        Err(LeaseExpired)
+    } else {
+        Ok(())
+    }
 }
 
 async fn keep_alive_continuously(
     mut client: Client,
     lease: i64,
     canary: Arc<AtomicBool>,
-) -> Result<(), etcd_client::Error> {
+) -> Result<(), LeaseExpired> {
     while canary.load(atomic::Ordering::Relaxed) {
         eprintln!("keeping alive..");
         send_keep_alive(&mut client, lease).await?;
@@ -303,6 +324,8 @@ pub enum TaskAliveError {
 
 #[derive(Debug, Error)]
 pub enum TaskStateError {
+    #[error("lease expired")]
+    LeaseExpired,
     #[error(transparent)]
     Etcd(#[from] etcd_client::Error),
     #[error(transparent)]
@@ -463,7 +486,10 @@ impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned + Send + 'st
 
         tokio::spawn(keep_alive_continuously(client, lease, canary));
 
-        LivenessGuard { canary: canary2 }
+        LivenessGuard {
+            canary: canary2,
+            expecting_liveness: true,
+        }
     }
 }
 
@@ -541,16 +567,62 @@ impl<Init, Progress: Clone + Send + 'static> SyncTaskLiveness<Init, Progress> {
         // result is safe to ignore here, as this always succeeds in the worker loop.
         let _ = self.send_progress(ExchangeItemInner::KeepAliveContinuously(canary));
 
-        LivenessGuard { canary: canary2 }
+        LivenessGuard {
+            canary: canary2,
+            expecting_liveness: true,
+        }
     }
 }
 
 pub struct LivenessGuard {
     canary: Arc<AtomicBool>,
+    expecting_liveness: bool,
+}
+
+impl LivenessGuard {
+    pub fn join(mut self) -> Result<(), TaskStateError> {
+        if self.expecting_liveness {
+            self.expecting_liveness = false;
+            if !self.canary.load(atomic::Ordering::Relaxed) {
+                return Err(TaskStateError::LeaseExpired);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Drop for LivenessGuard {
     fn drop(&mut self) {
+        if self.expecting_liveness && !self.canary.load(atomic::Ordering::Relaxed) {
+            panic!("lease expired");
+        }
         self.canary.store(false, atomic::Ordering::Relaxed);
     }
+}
+
+#[macro_export]
+macro_rules! keepalive {
+    ($live: expr, $body: expr) => {{
+        {
+            let guard = $live.guarded_keepalive().await;
+            let result = $body;
+            guard.join().expect("keepalive failed");
+
+            result
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! keepalive_sync {
+    ($live: expr, $body: expr) => {{
+        {
+            let guard = $live.guarded_keepalive();
+            let result = $body;
+            guard.join().expect("keepalive failed");
+
+            result
+        }
+    }};
 }

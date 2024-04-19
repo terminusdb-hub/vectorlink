@@ -1,13 +1,7 @@
 mod handler;
 
-use std::{thread::sleep, time::Duration};
-
-use async_trait::async_trait;
 use clap::Parser;
-use vectorlink_task::{
-    queue::Queue,
-    task::{TaskHandler, TaskLiveness},
-};
+use vectorlink_task::{queue::Queue, task::TaskHandler};
 
 use crate::handler::VectorlinkTaskHandler;
 

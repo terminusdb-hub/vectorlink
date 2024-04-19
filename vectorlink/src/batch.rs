@@ -283,6 +283,7 @@ fn perform_indexing(
         .map(VectorId)
         .collect();
 
+    progress.alive().unwrap();
     eprintln!("ready to generate hnsw");
     let hnsw = if quantize_hnsw {
         let number_of_centroids = 65_535;

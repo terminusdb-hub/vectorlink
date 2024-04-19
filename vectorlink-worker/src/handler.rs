@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use tokio::task::block_in_place;
 use vectorlink::batch::index_domain;
 use vectorlink::openai::Model;
@@ -7,7 +7,7 @@ use vectorlink_task::task::{SyncTaskLiveness, TaskHandler, TaskLiveness};
 
 use parallel_hnsw::progress::{Interrupt, ProgressMonitor};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BuildIndexRequest {
     domain: String,
     commit: String,
@@ -47,18 +47,27 @@ impl TaskHandler for VectorlinkTaskHandler {
         live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Complete, Self::Error> {
         let key = "fake";
-        let init = live.init().unwrap().unwrap();
-        let _state = live.progress().unwrap().unwrap();
-        let mut monitor = TaskMonitor(live.into_sync().unwrap());
+        let request: BuildIndexRequest = live.init().unwrap().unwrap();
+        let BuildIndexRequest {
+            model,
+            directory,
+            domain,
+            commit,
+            quantized,
+            ..
+        } = request;
+        let _state = live.progress().unwrap();
+        let live = live.into_sync().unwrap();
+        let mut monitor = TaskMonitor(live);
         block_in_place(|| {
             index_domain(
                 &key,
-                init.model,
-                init.directory,
-                &init.domain,
-                &init.commit,
+                model,
+                directory,
+                &domain,
+                &commit,
                 12345,
-                init.quantized,
+                quantized,
                 &mut monitor,
             )
         })
@@ -83,5 +92,9 @@ impl ProgressMonitor for TaskMonitor {
 
     fn keep_alive(&mut self) -> Box<dyn std::any::Any> {
         Box::new(self.0.guarded_keepalive())
+    }
+
+    fn alive(&mut self) -> Result<(), Interrupt> {
+        self.0.keepalive().map_err(|_| Interrupt)
     }
 }
