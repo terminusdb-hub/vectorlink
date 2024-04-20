@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
 "vectorlink"
-, "vectorlink-store", "vectorlink-task", "vectorlink-worker"]
+, "vectorlink-infra", "vectorlink-store", "vectorlink-task", "vectorlink-worker"]
 
 [profile.release]
 debug = true
