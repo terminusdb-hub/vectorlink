@@ -291,12 +291,7 @@ pub fn sum_384(vec: &[f32; 384]) -> f32 {
 
 pub mod simd {
     use super::*;
-    use aligned_box::AlignedBox;
     use std::simd::{f32x16, f32x4, f32x8, num::SimdFloat, Simd};
-
-    pub fn aligned_box(e: Embedding) -> AlignedBox<Embedding> {
-        AlignedBox::new(std::mem::align_of::<f32x16>(), e).unwrap()
-    }
 
     pub fn normalized_cosine_distance_simd(left: &Embedding, right: &Embedding) -> f32 {
         let mut sum = <f32x16>::splat(0.);
