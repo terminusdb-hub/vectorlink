@@ -3,4 +3,5 @@
 .env
 \#*\#
 .\#*
-.pyc
+*.pyc
+dist
