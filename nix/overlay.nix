@@ -39,6 +39,15 @@ import nixpkgs {
         pname = "vectorlink";
         version = "0.1.0";
       });
+      buildWorkspacePackage = {projectPath,...}@args:
+        let cargoToml = projectPath + "/Cargo.toml";
+            nameInfo = craneLib.crateNameFromCargoToml {inherit cargoToml;};
+        in
+          craneLib.buildPackage (rust-args // nameInfo // {
+            cargoArtifacts = vl-workspace;
+            cargoExtraArgs = "-p " + nameInfo.pname;
+          } // args);
+
       inherit (poetry2nix.lib.mkPoetry2Nix { pkgs = final; }) mkPoetryApplication defaultPoetryOverrides;
     })
   ];
