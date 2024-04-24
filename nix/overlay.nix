@@ -1,0 +1,45 @@
+# Takes flake inputs as an attribute set, and a path to the workspace root.
+# Output is a function that takes a system and produces an overlay for
+# building the projects in this workspace.
+#
+# Specifically, we ensure there's a configured craneLib with
+# arch-specific rust args for simd instructions, and we provide a
+# workspace dependency derivation that all projects can then depend
+# on.
+#
+# It also makes sure we can build poetry projects, for better or worse.
+let rustFlagsFor = {
+      x86_64-linux = "-C target-feature=+sse3,+avx,+avx2";
+      aarch64-linux = "-C target-feature=+v7,+neon";
+    };
+in
+path:
+{nixpkgs, rust-overlay, crane, poetry2nix, ...}:
+system:
+import nixpkgs {
+  inherit system;
+  overlays = [
+    (import rust-overlay)
+    (final: prev: rec {
+      craneLib = (crane.mkLib prev).overrideToolchain final.rust-bin.nightly.latest.minimal;
+      rust-args = {
+        nativeBuildInputs = [
+          final.pkg-config
+          final.protobuf
+        ];
+        buildInputs = [
+          final.openssl
+        ];
+        RUSTFLAGS = rustFlagsFor.${system};
+        src = craneLib.cleanCargoSource (craneLib.path path);
+        strictDeps = true;
+        doCheck = false;
+      };
+      vl-workspace = craneLib.buildDepsOnly (rust-args // {
+        pname = "vectorlink";
+        version = "0.1.0";
+      });
+      inherit (poetry2nix.lib.mkPoetry2Nix { pkgs = final; }) mkPoetryApplication defaultPoetryOverrides;
+    })
+  ];
+}
