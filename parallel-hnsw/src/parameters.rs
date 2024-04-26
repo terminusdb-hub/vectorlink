@@ -14,7 +14,7 @@ impl Default for SearchParameters {
             number_of_candidates: 300,
             upper_layer_candidate_count: 300,
             probe_depth: 2,
-            grid_network_dimension: 3,
+            grid_network_dimension: 12,
         }
     }
 }
