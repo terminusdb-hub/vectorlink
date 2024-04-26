@@ -158,6 +158,9 @@ impl<C> Layer<C> {
     }
 
     pub fn routing_nodes(&self, nodeid: NodeId, sp: SearchParameters) -> Vec<NodeId> {
+        if sp.grid_network_dimension == 0 {
+            return Vec::new();
+        }
         let increment = self.node_count() / sp.grid_network_dimension;
         let mut routing_nodes = Vec::with_capacity(sp.grid_network_dimension);
         for i in 1..sp.grid_network_dimension + 1 {
