@@ -2483,7 +2483,7 @@ mod tests {
     #[test]
     fn test_euclidean() {
         let mut prng = StdRng::seed_from_u64(42);
-        let size = 100_000;
+        let size = 1_000_000;
         let vecs: Vec<Vec<f32>> = (0..size).map(move |_| random_vec(&mut prng, 32)).collect();
         let cc = Comparator32 { data: vecs.into() };
         let vids: Vec<VectorId> = (0..size).map(VectorId).collect();
