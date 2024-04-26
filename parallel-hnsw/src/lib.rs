@@ -156,6 +156,16 @@ impl<C> Layer<C> {
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
+
+    pub fn routing_nodes(&self, nodeid: NodeId, sp: SearchParameters) -> Vec<NodeId> {
+        let increment = self.node_count() / sp.grid_network_dimension;
+        let mut routing_nodes = Vec::with_capacity(sp.grid_network_dimension);
+        for i in 1..sp.grid_network_dimension + 1 {
+            let new_node_id = (i * increment + nodeid.0) % self.node_count();
+            routing_nodes.push(NodeId(new_node_id))
+        }
+        routing_nodes
+    }
 }
 
 impl<C: Comparator> Layer<C> {
@@ -163,12 +173,17 @@ impl<C: Comparator> Layer<C> {
         &self,
         n: NodeId,
         number_of_nodes: usize,
-        probe_depth: usize,
+        search_parameters: SearchParameters,
     ) -> Vec<(NodeId, f32)> {
         let v = self.get_vector(n);
         let mut candidates = PriorityQueue::new(number_of_nodes);
         candidates.insert(n, f32::MAX);
-        self.closest_nodes(AbstractVector::Stored(v), &mut candidates, probe_depth);
+        self.closest_nodes(
+            AbstractVector::Stored(v),
+            &mut candidates,
+            search_parameters.number_of_candidates,
+            search_parameters,
+        );
         candidates.iter().collect()
     }
 
@@ -177,6 +192,7 @@ impl<C: Comparator> Layer<C> {
         v: AbstractVector<C::T>,
         candidates: &mut PriorityQueue<NodeId>,
         mut probe_depth: usize,
+        sp: SearchParameters,
     ) -> usize {
         assert!(!candidates.is_empty());
         let mut visit_queue: Vec<(NodeId, f32, NodeDistance)> = candidates
@@ -195,6 +211,7 @@ impl<C: Comparator> Layer<C> {
             let neighbors = self.get_neighbors(next);
             let mut neighbor_distances: Vec<_> = neighbors
                 .iter() // Remove reviously visited nodes
+                .chain(self.routing_nodes(next, sp).iter())
                 .filter(|n| !visited.contains(*n))
                 .map(|n| {
                     let distance = self
@@ -252,7 +269,7 @@ impl<C: Comparator> Layer<C> {
         v: AbstractVector<C::T>,
         candidates: &PriorityQueue<VectorId>,
         candidate_count: usize,
-        probe_depth: usize,
+        search_parameters: SearchParameters,
         include: F,
     ) -> (Vec<(VectorId, f32)>, usize) {
         let pairs: Vec<(NodeId, f32)> = candidates
@@ -264,7 +281,12 @@ impl<C: Comparator> Layer<C> {
         let mut queue = PriorityQueue::new(candidates.capacity());
         //let mut queue = PriorityQueue::new(candidate_count);
         queue.merge_pairs(&pairs);
-        let index_distance = self.closest_nodes(v, &mut queue, probe_depth);
+        let index_distance = self.closest_nodes(
+            v,
+            &mut queue,
+            search_parameters.number_of_candidates,
+            search_parameters,
+        );
         (
             queue
                 .iter()
@@ -905,7 +927,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
     pub fn knn(
         &self,
         k: usize,
-        probe_depth: usize,
+        search_parameters: SearchParameters,
     ) -> impl ParallelIterator<Item = (VectorId, Vec<(VectorId, f32)>)> + '_ {
         let layer = &self.layers[self.layers.len() - 1];
         let nodes = &layer.nodes;
@@ -916,7 +938,12 @@ impl<C: Comparator + 'static> Hnsw<C> {
             let eff_factor = 3;
             let mut pq = PriorityQueue::new(k * eff_factor);
             pq.merge_pairs(&[(node, 0.0)]);
-            layer.closest_nodes(abstract_vector, &mut pq, probe_depth);
+            layer.closest_nodes(
+                abstract_vector,
+                &mut pq,
+                search_parameters.number_of_candidates,
+                search_parameters,
+            );
             let distances: Vec<_> = pq
                 .iter()
                 .filter(|(n, _)| *n != node)
@@ -930,8 +957,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
     pub fn threshold_nn(
         &self,
         threshold: f32,
-        probe_depth: usize,
-        initial_search_depth: usize,
+        search_parameters: SearchParameters,
     ) -> impl IndexedParallelIterator<Item = (VectorId, Vec<(VectorId, f32)>)> + '_ {
         let layer = &self.layers[self.layers.len() - 1];
         let nodes = &layer.nodes;
@@ -939,13 +965,18 @@ impl<C: Comparator + 'static> Hnsw<C> {
         nodes.par_iter().enumerate().map(move |(i, v)| {
             let node = NodeId(i);
             let abstract_vector = AbstractVector::Stored(*v);
-            let mut pq = PriorityQueue::new(initial_search_depth);
+            let mut pq = PriorityQueue::new(search_parameters.number_of_candidates);
             pq.merge_pairs(&[(node, 0.0)]);
             let mut last = 0.0;
             let mut last_size = 0;
             while last < threshold && pq.len() > last_size {
                 last_size = pq.len();
-                layer.closest_nodes(abstract_vector.clone(), &mut pq, probe_depth);
+                layer.closest_nodes(
+                    abstract_vector.clone(),
+                    &mut pq,
+                    search_parameters.number_of_candidates,
+                    search_parameters,
+                );
                 last = pq.last().expect("should have at least retrieved self").1;
                 if last < threshold && pq.len() == pq.capacity() {
                     pq.resize_capacity(pq.capacity() * 2);
@@ -2010,7 +2041,7 @@ mod tests {
         bp.order = 6;
         bp.neighborhood_size = 3;
         bp.zero_layer_neighborhood_size = 6;
-        let hnsw: Hnsw<SillyComparator> = Hnsw::generate(c, vs, bp);
+        let hnsw: Hnsw<SillyComparator> = Hnsw::generate(c, vs, bp, &mut ());
         hnsw
     }
 
@@ -2035,7 +2066,7 @@ mod tests {
         bp.neighborhood_size = 3;
         bp.zero_layer_neighborhood_size = 6;
 
-        let mut hnsw: Hnsw<SillyComparator> = Hnsw::generate(c, vs, bp);
+        let mut hnsw: Hnsw<SillyComparator> = Hnsw::generate(c, vs, bp, &mut ());
         let bottom = &mut hnsw.layers[1];
         // add a ninth disconnected vector
         bottom.nodes.push(VectorId(9));
@@ -2225,7 +2256,7 @@ mod tests {
         eprintln!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         eprintln!("Finished building, now improving");
         eprintln!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-        hnsw.improve_index(bp, None);
+        hnsw.improve_index(bp, None, &mut ());
         do_test_recall(&hnsw, 1.0);
         panic!();
     }
@@ -2237,14 +2268,14 @@ mod tests {
         let bp = BuildParameters::default();
         let mut hnsw: Hnsw<BigComparator> =
             bigvec::make_random_hnsw_with_build_parameters(size, dimension, bp);
-        hnsw.improve_index(bp, None);
+        hnsw.improve_index(bp, None, &mut ());
         do_test_recall(&hnsw, 0.0);
         let mut improvement_count = 0;
         let mut last_recall = 0.0;
         let mut last_improvement = 1.0;
         while last_improvement > 0.001 {
             eprintln!("{improvement_count} time to improve index");
-            hnsw.improve_index(bp, None);
+            hnsw.improve_index(bp, None, &mut ());
             let new_recall = do_test_recall(&hnsw, 0.0);
             last_improvement = new_recall - last_recall;
             last_recall = new_recall;
@@ -2262,7 +2293,7 @@ mod tests {
         let bp = BuildParameters::default();
         let mut hnsw: Hnsw<BigComparator> =
             bigvec::make_random_hnsw_with_build_parameters(size, dimension, bp);
-        hnsw.improve_index(bp, None);
+        hnsw.improve_index(bp, None, &mut ());
         do_test_recall(&hnsw, 0.0);
         panic!()
     }
@@ -2271,7 +2302,7 @@ mod tests {
     fn test_small_index_improvement() {
         let mut hnsw: Hnsw<SillyComparator> = make_simple_hnsw();
         eprintln!("One from bottom: {:?}", hnsw.layers[hnsw.layer_count() - 2]);
-        hnsw.improve_index(hnsw.build_parameters, None);
+        hnsw.improve_index(hnsw.build_parameters, None, &mut ());
         eprintln!(
             "One from bottom after: {:?}",
             hnsw.layers[hnsw.layer_count() - 2]
@@ -2287,7 +2318,7 @@ mod tests {
     #[test]
     fn test_tiny_index_improvement() {
         let mut hnsw: Hnsw<SillyComparator> = make_broken_hnsw();
-        hnsw.improve_index(hnsw.build_parameters, None);
+        hnsw.improve_index(hnsw.build_parameters, None, &mut ());
         let data = &hnsw.layers[hnsw.layer_count() - 1].comparator.data;
         for (i, datum) in data.iter().enumerate() {
             let v = AbstractVector::Unstored(datum);
@@ -2330,7 +2361,7 @@ mod tests {
         let mut hnsw = best_hnsw.unwrap();
         while last_improvement > 0.001 {
             eprintln!("{improvement_count} time to improve index");
-            hnsw.improve_index(hnsw.build_parameters, None);
+            hnsw.improve_index(hnsw.build_parameters, None, &mut ());
             let new_recall = do_test_recall(&hnsw, 0.0);
             last_improvement = new_recall - last_recall;
             last_recall = new_recall;
@@ -2358,7 +2389,8 @@ mod tests {
     #[test]
     fn test_knn() {
         let hnsw: Hnsw<SillyComparator> = make_simple_hnsw();
-        let mut results: Vec<_> = hnsw.knn(1, 1).collect();
+        let sp = SearchParameters::default();
+        let mut results: Vec<_> = hnsw.knn(1, sp).collect();
         results.sort_by_key(|(v, _d)| *v);
         assert_eq!(
             results,
@@ -2379,9 +2411,8 @@ mod tests {
     #[test]
     fn test_threshold_nn() {
         let hnsw: Hnsw<SillyComparator> = make_simple_hnsw();
-        let mut results: Vec<_> = hnsw
-            .threshold_nn(0.3, 1, hnsw.build_parameters.zero_layer_neighborhood_size)
-            .collect();
+        let params = SearchParameters::default();
+        let mut results: Vec<_> = hnsw.threshold_nn(0.3, params).collect();
         results.sort_by_key(|(v, _d)| *v);
         assert_eq!(
             results,
@@ -2454,8 +2485,8 @@ mod tests {
         let cc = Comparator32 { data: vecs.into() };
         let vids: Vec<VectorId> = (0..size).map(VectorId).collect();
         let bp = BuildParameters::default();
-        let mut hnsw: Hnsw<Comparator32> = Hnsw::generate(cc, vids, bp);
-        hnsw.improve_index(bp, None);
+        let mut hnsw: Hnsw<Comparator32> = Hnsw::generate(cc, vids, bp, &mut ());
+        hnsw.improve_index(bp, None, &mut ());
         panic!()
     }
 

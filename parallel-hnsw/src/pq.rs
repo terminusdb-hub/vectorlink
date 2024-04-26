@@ -392,15 +392,15 @@ impl<
     pub fn zero_neighborhood_size(&self) -> usize {
         self.hnsw.zero_neighborhood_size()
     }
+
     pub fn threshold_nn(
         &self,
         threshold: f32,
-        probe_depth: usize,
-        initial_search_depth: usize,
+        search_parameters: SearchParameters,
     ) -> impl IndexedParallelIterator<Item = (VectorId, Vec<(VectorId, f32)>)> + '_ {
-        self.hnsw
-            .threshold_nn(threshold, probe_depth, initial_search_depth)
+        self.hnsw.threshold_nn(threshold, search_parameters)
     }
+
     pub fn stochastic_recall(&self, optimization_parameters: OptimizationParameters) -> f32 {
         self.hnsw.stochastic_recall(optimization_parameters)
     }
@@ -855,7 +855,7 @@ mod tests {
         };
         let bp = PqBuildParameters::default();
         let hnsw: QuantizedHnsw<1536, 16, 96, CentroidComparator16, QuantizedComparator16, _> =
-            QuantizedHnsw::new(100, fc, bp);
+            QuantizedHnsw::new(100, fc, bp, &mut ());
         let v = AbstractVector::Unstored(&vecs[0]);
         let res = hnsw.search(v, bp.hnsw.optimization.search);
         eprintln!("res: {res:?}");
@@ -880,7 +880,7 @@ mod tests {
         };
         let bp = PqBuildParameters::default();
         let mut hnsw: QuantizedHnsw<16, 4, 4, CentroidComparator4, QuantizedComparator4, _> =
-            QuantizedHnsw::new(100, fc, bp);
+            QuantizedHnsw::new(100, fc, bp, &mut ());
         hnsw.improve_neighbors(bp.hnsw.optimization, None);
 
         // Test last vector individually
@@ -948,8 +948,8 @@ mod tests {
         //let quantized_comparator = QuantizedComparator16::new(&centroid_comparator);
         let bp = PqBuildParameters::default();
         let mut centroid_hnsw: Hnsw<CentroidComparator16> =
-            Hnsw::generate(centroid_comparator, vector_ids, bp.centroids);
-        let recall = centroid_hnsw.improve_index(bp.centroids, None);
+            Hnsw::generate(centroid_comparator, vector_ids, bp.centroids, &mut ());
+        let recall = centroid_hnsw.improve_index(bp.centroids, None, &mut ());
         assert!(recall > 0.99);
     }
 
@@ -972,7 +972,7 @@ mod tests {
         };
         let bp = PqBuildParameters::default();
         let mut hnsw: QuantizedHnsw<1536, 16, 96, CentroidComparator16, QuantizedComparator16, _> =
-            QuantizedHnsw::new(centroids, fc, bp);
+            QuantizedHnsw::new(centroids, fc, bp, &mut ());
         let recall = hnsw.improve_neighbors(bp.hnsw.optimization, None);
         assert_eq!(recall, 1.0)
     }

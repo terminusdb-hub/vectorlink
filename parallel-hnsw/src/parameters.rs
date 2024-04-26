@@ -5,6 +5,7 @@ pub struct SearchParameters {
     pub number_of_candidates: usize,
     pub upper_layer_candidate_count: usize,
     pub probe_depth: usize,
+    pub grid_network_dimension: usize,
 }
 
 impl Default for SearchParameters {
@@ -13,6 +14,7 @@ impl Default for SearchParameters {
             number_of_candidates: 300,
             upper_layer_candidate_count: 300,
             probe_depth: 2,
+            grid_network_dimension: 3,
         }
     }
 }
@@ -58,6 +60,7 @@ impl Default for BuildParameters {
                 number_of_candidates: 6,
                 upper_layer_candidate_count: 6,
                 probe_depth: 2,
+                grid_network_dimension: 3,
             },
         }
     }

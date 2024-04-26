@@ -125,13 +125,12 @@ pub fn search_layers_instrumented<C: Comparator, L: AsRef<Layer<C>>>(
             upper_layer_candidate_count
         };
         let layer = &layers[i];
-        let (closest, index_distance) = layer.as_ref().closest_vectors(
-            v.clone(),
-            &candidates,
-            candidate_count,
-            sp.probe_depth,
-            |v| Some(v) != exclude,
-        );
+        let (closest, index_distance) =
+            layer
+                .as_ref()
+                .closest_vectors(v.clone(), &candidates, candidate_count, sp, |v| {
+                    Some(v) != exclude
+                });
         last_index_distance = index_distance;
         candidates.merge_pairs(&closest);
     }
