@@ -2484,7 +2484,8 @@ mod tests {
         let vecs: Vec<Vec<f32>> = (0..size).map(move |_| random_vec(&mut prng, 32)).collect();
         let cc = Comparator32 { data: vecs.into() };
         let vids: Vec<VectorId> = (0..size).map(VectorId).collect();
-        let bp = BuildParameters::default();
+        let mut bp = BuildParameters::default();
+        bp.optimization.search.grid_network_dimension = 0;
         let mut hnsw: Hnsw<Comparator32> = Hnsw::generate(cc, vids, bp, &mut ());
         hnsw.improve_index(bp, None, &mut ());
         panic!()
