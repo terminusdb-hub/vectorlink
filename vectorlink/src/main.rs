@@ -28,6 +28,7 @@ use configuration::HnswConfiguration;
 //use hnsw::Hnsw;
 use openai::Model;
 use parallel_hnsw::parameters::OptimizationParameters;
+use parallel_hnsw::parameters::SearchParameters;
 use parallel_hnsw::AbstractVector;
 use parallel_hnsw::Serializable;
 use rand::prelude::*;
@@ -490,14 +491,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let store = VectorStore::new(dirpath, size);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
 
-            let initial_search_depth = 3 * hnsw.zero_neighborhood_size();
+            let sp = SearchParameters::default();
             let elts = if let Some(take) = take {
-                Either::Left(
-                    hnsw.threshold_nn(threshold, 2, initial_search_depth)
-                        .take_any(take),
-                )
+                Either::Left(hnsw.threshold_nn(threshold, sp).take_any(take))
             } else {
-                Either::Right(hnsw.threshold_nn(threshold, 2, initial_search_depth))
+                Either::Right(hnsw.threshold_nn(threshold, sp))
             };
             let stdout = std::io::stdout();
             elts.for_each(|(v, results)| {

@@ -285,34 +285,29 @@ impl HnswConfiguration {
     pub fn threshold_nn(
         &self,
         threshold: f32,
-        probe_depth: usize,
-        initial_search_depth: usize,
+        search_parameters: SearchParameters,
     ) -> impl IndexedParallelIterator<Item = (VectorId, Vec<(VectorId, f32)>)> + '_ {
         match self {
             HnswConfiguration::QuantizedOpenAi(_model, q) => {
-                Either::Left(q.threshold_nn(threshold, probe_depth, initial_search_depth))
+                Either::Left(q.threshold_nn(threshold, search_parameters))
             }
-            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => Either::Right(Either::Left(
-                q.threshold_nn(threshold, probe_depth, initial_search_depth),
-            )),
+            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
+                Either::Right(Either::Left(q.threshold_nn(threshold, search_parameters)))
+            }
             HnswConfiguration::UnquantizedOpenAi(_model, h) => Either::Right(Either::Right(
-                Either::Left(h.threshold_nn(threshold, probe_depth, initial_search_depth)),
+                Either::Left(h.threshold_nn(threshold, search_parameters)),
             )),
-            HnswConfiguration::SmallQuantizedOpenAi8(_model, q) => {
-                Either::Right(Either::Right(Either::Right(Either::Left(q.threshold_nn(
-                    threshold,
-                    probe_depth,
-                    initial_search_depth,
-                )))))
-            }
+            HnswConfiguration::SmallQuantizedOpenAi8(_model, q) => Either::Right(Either::Right(
+                Either::Right(Either::Left(q.threshold_nn(threshold, search_parameters))),
+            )),
             HnswConfiguration::SmallQuantizedOpenAi4(_model, q) => {
                 Either::Right(Either::Right(Either::Right(Either::Right(Either::Left(
-                    q.threshold_nn(threshold, probe_depth, initial_search_depth),
+                    q.threshold_nn(threshold, search_parameters),
                 )))))
             }
             HnswConfiguration::Quantized1024By16(_, q) => {
                 Either::Right(Either::Right(Either::Right(Either::Right(Either::Right(
-                    q.threshold_nn(threshold, probe_depth, initial_search_depth),
+                    q.threshold_nn(threshold, search_parameters),
                 )))))
             }
         }
