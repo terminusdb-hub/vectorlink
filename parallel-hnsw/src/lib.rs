@@ -165,6 +165,7 @@ impl<C> Layer<C> {
             .iter()
             .take(sp.grid_network_dimension)
             .map(|prime| NodeId((nodeid.0 + prime) % size))
+            .filter(|i| *i != nodeid)
             .collect()
     }
 }
