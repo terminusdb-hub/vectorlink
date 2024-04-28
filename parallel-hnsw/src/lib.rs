@@ -158,16 +158,14 @@ impl<C> Layer<C> {
     }
 
     pub fn routing_nodes(&self, nodeid: NodeId, sp: SearchParameters) -> Vec<NodeId> {
-        if sp.grid_network_dimension == 0 {
-            return Vec::new();
-        }
-        let increment = self.node_count() / sp.grid_network_dimension;
-        let mut routing_nodes = Vec::with_capacity(sp.grid_network_dimension);
-        for i in 1..sp.grid_network_dimension + 1 {
-            let new_node_id = (i * increment + nodeid.0) % self.node_count();
-            routing_nodes.push(NodeId(new_node_id))
-        }
-        routing_nodes
+        let primes = [1, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+        // Calculate using the circulants
+        let size = self.node_count();
+        primes
+            .iter()
+            .take(sp.grid_network_dimension)
+            .map(|prime| NodeId((nodeid.0 + prime) % size))
+            .collect()
     }
 }
 

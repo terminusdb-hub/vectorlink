@@ -80,7 +80,8 @@ impl VectorFile {
 
         let file = options.open(&path)?;
         let byte_size = file.metadata()?.size() as usize;
-
+        eprintln!("byte_size: {byte_size}");
+        eprintln!("vector_byte_size: {vector_byte_size}");
         assert!(byte_size % vector_byte_size == 0);
 
         let num_vecs = byte_size / vector_byte_size;
