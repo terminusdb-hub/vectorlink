@@ -322,16 +322,16 @@ impl<
         };
         let mut vids: Vec<VectorId> = Vec::new();
         eprintln!("quantizing");
-        keepalive!(progress, {
-            for chunk in comparator.vector_chunks() {
-                let quantized: Vec<_> = chunk
-                    .into_par_iter()
-                    .map(|v| centroid_quantizer.quantize(&v))
-                    .collect();
+        //keepalive!(progress, {
+        for chunk in comparator.vector_chunks() {
+            let quantized: Vec<_> = chunk
+                .into_par_iter()
+                .map(|v| centroid_quantizer.quantize(&v))
+                .collect();
 
-                vids.extend(quantized_comparator.store(Box::new(quantized.into_iter())));
-            }
-        });
+            vids.extend(quantized_comparator.store(Box::new(quantized.into_iter())));
+        }
+        //});
 
         eprintln!("generating");
         let hnsw: Hnsw<QuantizedComparator> =
