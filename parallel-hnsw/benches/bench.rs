@@ -50,14 +50,3 @@ fn create_test_data(length: usize) -> SillyComparator {
         data: Arc::new(vec),
     }
 }
-
-#[bench]
-fn bla(b: &mut Bencher) {
-    const LENGTH: usize = 10000;
-    let comparator = create_test_data(LENGTH);
-    let vs: Vec<VectorId> = (0..LENGTH).map(VectorId).collect();
-
-    b.iter(|| {
-        let _result: Hnsw<_> = Hnsw::generate(comparator.clone(), vs.clone(), 24, 48, 2);
-    });
-}

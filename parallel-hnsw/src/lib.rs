@@ -32,6 +32,11 @@ use std::fmt::Debug;
 use crate::search::assert_layer_invariants;
 use crate::{priority_queue::PriorityQueue, search::match_within_epsilon};
 
+const PRIMES: [usize; 40] = [
+    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+    101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173,
+];
+
 pub enum WrappedBorrowable<'a, T: ?Sized, Borrowable: Deref<Target = T> + 'a> {
     Left(Borrowable),
     Right(&'a T),
@@ -158,12 +163,11 @@ impl<C> Layer<C> {
     }
 
     pub fn routing_nodes(&self, nodeid: NodeId, sp: SearchParameters) -> Vec<NodeId> {
-        let primes = [1, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
         // Calculate using the circulants
         let size = self.node_count();
-        primes
+        PRIMES
             .iter()
-            .take(sp.grid_network_dimension)
+            .take(sp.circulant_parameter_count)
             .map(|prime| NodeId((nodeid.0 + prime) % size))
             .filter(|i| *i != nodeid)
             .collect()
@@ -2251,7 +2255,9 @@ mod tests {
     fn test_recall() {
         let size = 10_000;
         let dimension = 1536;
-        let bp = BuildParameters::default();
+        let mut bp = BuildParameters::default();
+        bp.initial_partition_search.circulant_parameter_count = 0;
+        bp.optimization.search.circulant_parameter_count = 0;
         let mut hnsw: Hnsw<BigComparator> =
             bigvec::make_random_hnsw_with_build_parameters(size, dimension, bp);
         do_test_recall(&hnsw, 0.9);
@@ -2487,7 +2493,8 @@ mod tests {
         let cc = Comparator32 { data: vecs.into() };
         let vids: Vec<VectorId> = (0..size).map(VectorId).collect();
         let mut bp = BuildParameters::default();
-        bp.optimization.search.grid_network_dimension = 0;
+        bp.initial_partition_search.circulant_parameter_count = 0;
+        bp.optimization.search.circulant_parameter_count = 0;
         let mut hnsw: Hnsw<Comparator32> = Hnsw::generate(cc, vids, bp, &mut ());
         hnsw.improve_index(bp, None, &mut ());
         panic!()

@@ -5,7 +5,7 @@ pub struct SearchParameters {
     pub number_of_candidates: usize,
     pub upper_layer_candidate_count: usize,
     pub probe_depth: usize,
-    pub grid_network_dimension: usize,
+    pub circulant_parameter_count: usize,
 }
 
 impl Default for SearchParameters {
@@ -14,7 +14,7 @@ impl Default for SearchParameters {
             number_of_candidates: 300,
             upper_layer_candidate_count: 300,
             probe_depth: 2,
-            grid_network_dimension: 12,
+            circulant_parameter_count: 12,
         }
     }
 }
@@ -34,7 +34,7 @@ impl Default for OptimizationParameters {
             promotion_threshold: 0.01,
             neighborhood_threshold: 0.01,
             recall_proportion: 0.1,
-            promotion_proportion: 1.0,
+            promotion_proportion: 0.0,
             search: SearchParameters::default(),
         }
     }
@@ -60,7 +60,7 @@ impl Default for BuildParameters {
                 number_of_candidates: 6,
                 upper_layer_candidate_count: 6,
                 probe_depth: 2,
-                grid_network_dimension: 3,
+                circulant_parameter_count: 12,
             },
         }
     }
