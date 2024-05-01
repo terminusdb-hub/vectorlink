@@ -12,39 +12,34 @@ let rustFlagsFor = {
     };
 in
 path:
-{nixpkgs, rust-overlay, crane, ...}:
-system:
-import nixpkgs {
-  inherit system;
-  overlays = [
-    (import rust-overlay)
-    (final: prev: rec {
-      craneLib = (crane.mkLib prev).overrideToolchain final.rust-bin.nightly.latest.minimal;
-      rust-args = {
-        nativeBuildInputs = [
-          final.pkg-config
-          final.protobuf
-        ];
-        buildInputs = [
-          final.openssl
-        ];
-        RUSTFLAGS = if final.stdenv.hostPlatform.isAarch64 then rustFlagsFor.arm else rustFlagsFor.x86;
-        src = craneLib.cleanCargoSource (craneLib.path path);
-        strictDeps = true;
-        doCheck = false;
-      };
-      vl-workspace = craneLib.buildDepsOnly (rust-args // {
-        pname = "vectorlink";
-        version = "0.1.0";
-      });
-      buildWorkspacePackage = {projectPath,...}@args:
-        let cargoToml = projectPath + "/Cargo.toml";
-            nameInfo = craneLib.crateNameFromCargoToml {inherit cargoToml;};
-        in
-          craneLib.buildPackage (rust-args // nameInfo // {
-            cargoArtifacts = vl-workspace;
-            cargoExtraArgs = "-p " + nameInfo.pname;
-          } // args);
-    })
-  ];
+{rust-overlay, crane, ...}:
+final: prev:
+let prev' = prev.extend(import rust-overlay); in
+rec {
+  craneLib = (crane.mkLib prev').overrideToolchain prev'.rust-bin.nightly.latest.minimal;
+  rust-args = {
+    nativeBuildInputs = [
+      final.pkg-config
+      final.protobuf
+    ];
+    buildInputs = [
+      final.openssl
+    ];
+    RUSTFLAGS = if final.stdenv.hostPlatform.isAarch64 then rustFlagsFor.arm else rustFlagsFor.x86;
+    src = craneLib.cleanCargoSource (craneLib.path path);
+    strictDeps = true;
+    doCheck = false;
+  };
+  vl-workspace = craneLib.buildDepsOnly (rust-args // {
+    pname = "vectorlink";
+    version = "0.1.0";
+  });
+  buildWorkspacePackage = {projectPath,...}@args:
+    let cargoToml = projectPath + "/Cargo.toml";
+        nameInfo = craneLib.crateNameFromCargoToml {inherit cargoToml;};
+    in
+      craneLib.buildPackage (rust-args // nameInfo // {
+        cargoArtifacts = vl-workspace;
+        cargoExtraArgs = "-p " + nameInfo.pname;
+      } // args);
 }

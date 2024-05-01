@@ -19,13 +19,12 @@
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      makeOverlay = (import nix/overlay.nix) ./. inputs;
-      nixpkgsFor = forAllSystems makeOverlay;
+      overlay = (import nix/overlay.nix) ./. inputs;
     in
     {
-      overlays = nixpkgsFor;
+      overlays.default = overlay;
       packages = forAllSystems (system:
-        let pkgs = nixpkgsFor.${system};
+        let pkgs = nixpkgs.legacyPackages.${system}.extend overlay;
         in
         rec {
           vectorlink = pkgs.callPackage ./vectorlink {};
