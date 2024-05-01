@@ -1,5 +1,5 @@
 {
-  description = "Vectorlink projects and machines";
+  description = "Vectorlink projects";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-23.11";
@@ -13,13 +13,9 @@
         nixpkgs.follows = "nixpkgs";
       };
     };
-    poetry2nix = {
-      url = "github:nix-community/poetry2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, crane, rust-overlay, poetry2nix }@inputs: (
+  outputs = { self, nixpkgs, crane, rust-overlay }@inputs: (
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
@@ -31,31 +27,11 @@
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in
-        {
+        rec {
           vectorlink = pkgs.callPackage ./vectorlink {};
-          vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
-          vectorlink-infra = pkgs.callPackage ./vectorlink-infra {};
-          vectorlink-task-monitor = pkgs.callPackage python/vectorlink-task {};
-          vectorlink-vectorize = pkgs.callPackage python/vectorlink-vectorize {};
+          default = vectorlink;
         }
       );
-
-      apps = forAllSystems (system :
-        let p = self.packages.${system}; in
-        {
-          worker = {
-            type = "app";
-            program = "${p.vectorlink-worker}/bin/vectorlink-worker";
-          };
-          task-monitor = {
-            type = "app";
-            program = "${p.vectorlink-task-monitor}/bin/task-monitor";
-          };
-          backend = {
-            type = "app";
-            program = "${p.vectorlink-vectorize}/bin/backend";
-          };
-        });
     }
   );
 }

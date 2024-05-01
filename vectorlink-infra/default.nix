@@ -1,4 +1,0 @@
-{ buildWorkspacePackage }:
-buildWorkspacePackage {
-  projectPath = ./.;
-}

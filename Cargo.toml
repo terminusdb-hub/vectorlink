@@ -3,10 +3,7 @@ resolver = "2"
 members = [
 "parallel-hnsw",
 "vectorlink",
-"vectorlink-infra",
 "vectorlink-store",
-"vectorlink-task",
-"vectorlink-worker"]
-
+]
 [profile.release]
 debug = true
