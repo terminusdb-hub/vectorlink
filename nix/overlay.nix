@@ -1,6 +1,6 @@
 # Takes flake inputs as an attribute set, and a path to the workspace root.
-# Output is a function that takes a system and produces an overlay for
-# building the projects in this workspace.
+# Output is a an overlay for # building the projects in this
+# workspace.
 #
 # Specifically, we ensure there's a configured craneLib with
 # arch-specific rust args for simd instructions, and we provide a
@@ -9,8 +9,8 @@
 #
 # It also makes sure we can build poetry projects, for better or worse.
 let rustFlagsFor = {
-      x86_64-linux = "-C target-feature=+sse3,+avx,+avx2";
-      aarch64-linux = "-C target-feature=+v7,+neon";
+      x86 = "-C target-feature=+sse3,+avx,+avx2";
+      arm = "-C target-feature=+v7,+neon";
     };
 in
 path:
@@ -30,7 +30,7 @@ import nixpkgs {
         buildInputs = [
           final.openssl
         ];
-        RUSTFLAGS = rustFlagsFor.${system};
+        RUSTFLAGS = if final.stdenv.hostPlatform.isAarch64 then rustFlagsFor.arm else rustFlagsFor.x86;
         src = craneLib.cleanCargoSource (craneLib.path path);
         strictDeps = true;
         doCheck = false;

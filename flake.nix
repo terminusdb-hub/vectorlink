@@ -27,6 +27,7 @@
       nixpkgsFor = forAllSystems makeOverlay;
     in
     {
+      overlays = nixpkgsFor;
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in
