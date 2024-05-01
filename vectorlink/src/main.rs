@@ -823,5 +823,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     }
 
+    eprintln!("arbitrary change, do not forget to remove");
+
     Ok(())
 }
