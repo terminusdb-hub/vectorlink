@@ -14,7 +14,7 @@ impl Default for SearchParameters {
             number_of_candidates: 300,
             upper_layer_candidate_count: 300,
             probe_depth: 2,
-            circulant_parameter_count: 12,
+            circulant_parameter_count: 6,
         }
     }
 }
@@ -60,7 +60,7 @@ impl Default for BuildParameters {
                 number_of_candidates: 6,
                 upper_layer_candidate_count: 6,
                 probe_depth: 2,
-                circulant_parameter_count: 12,
+                circulant_parameter_count: 6,
             },
         }
     }

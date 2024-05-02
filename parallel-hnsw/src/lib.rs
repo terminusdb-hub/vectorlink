@@ -162,15 +162,23 @@ impl<C> Layer<C> {
         self.nodes.len()
     }
 
-    pub fn routing_nodes(&self, nodeid: NodeId, sp: SearchParameters) -> Vec<NodeId> {
+    pub fn routing_nodes(
+        &self,
+        nodeid: NodeId,
+        sp: SearchParameters,
+    ) -> impl Iterator<Item = NodeId> {
         // Calculate using the circulants
         let size = self.node_count();
         PRIMES
             .iter()
             .take(sp.circulant_parameter_count)
-            .map(|prime| NodeId((nodeid.0 + prime) % size))
-            .filter(|i| *i != nodeid)
-            .collect()
+            .flat_map(move |prime| {
+                [
+                    NodeId((nodeid.0 + prime) % size),
+                    NodeId((nodeid.0 + (size - (prime % size))) % size),
+                ]
+            })
+            .filter(move |i| *i != nodeid)
     }
 }
 
@@ -217,13 +225,14 @@ impl<C: Comparator> Layer<C> {
             let neighbors = self.get_neighbors(next);
             let mut neighbor_distances: Vec<_> = neighbors
                 .iter() // Remove reviously visited nodes
-                .chain(self.routing_nodes(next, sp).iter())
-                .filter(|n| !visited.contains(*n))
+                .copied()
+                .chain(self.routing_nodes(next, sp))
+                .filter(|n| !visited.contains(n))
                 .map(|n| {
                     let distance = self
                         .comparator
-                        .compare_vec(v.clone(), AbstractVector::Stored(self.get_vector(*n)));
-                    (*n, distance)
+                        .compare_vec(v.clone(), AbstractVector::Stored(self.get_vector(n)));
+                    (n, distance)
                 })
                 .collect();
             neighbor_distances.sort_by_key(|(n, distance)| (OrderedFloat(*distance), *n));
