@@ -611,7 +611,7 @@ impl Drop for LivenessGuard {
 macro_rules! keepalive {
     ($live: expr, $body: expr) => {{
         {
-            let guard = $live.guarded_keepalive().await;
+            let guard = $live.guarded_keepalive().await.expect("keepalive failed");
             let result = $body;
             guard.join().expect("keepalive failed");
 
