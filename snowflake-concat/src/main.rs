@@ -39,8 +39,8 @@ async fn multipart_concat<S: AsRef<str>, I: Iterator<Item = S> + ExactSizeIterat
     files: I,
     concatenated: &str,
 ) -> Result<(), aws_sdk_s3::Error> {
-    eprintln!("bucket: {bucket}");
     /*
+    eprintln!("bucket: {bucket}");
     eprintln!("this would have created {concatenated}");
     eprintln!("inputs:");
     for f in files {
@@ -138,12 +138,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Then <name>_<x>_aggregated.json
     // Finally <name>_aggregated.json
 
-    let all_objects: Vec<_> = all_objects
+    let all_objects: Vec<((&str, usize, usize), &str)> = all_objects
         .iter()
         .filter_map(|o| {
             let key = o.key().unwrap();
-            let name = SnowflakeName::try_parse(key)?;
-            Some((name, key))
+            if !key.ends_with("_aggregated.json") {
+                None
+            } else {
+                let parsed: Vec<_> = key.rsplitn(4, '_').collect();
+                Some((
+                    (parsed[3], parsed[2].parse().ok()?, parsed[1].parse().ok()?),
+                    key,
+                ))
+            }
+            //let name = SnowflakeName::try_parse(key)?;
+            //Some((name, key))
         })
         .collect();
 
@@ -152,42 +161,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // layer one, group by name, x, y
     let groups = all_objects
         .into_iter()
-        .into_group_map_by(|(name, _)| (name.name, name.x, name.y));
-
-    let mut aggregated_keys = Vec::new();
-    for ((name, x, y), mut group) in groups {
-        group.sort_by_key(|v| v.0.z);
-        let result_key = format!("{name}_{x}_{y}_aggregated.json");
-        eprintln!("concatenating {result_key}");
-        // run a multipart copy to get this done
-        multipart_concat(
-            &mut client,
-            &args.bucket,
-            group.iter().map(|g| g.1),
-            &result_key,
-        )
-        .await?;
-
-        aggregated_keys.push(((name, x, y), result_key));
-
-        eprintln!("concatenated");
-    }
-
-    // layer two, group by name, x
-    let groups = aggregated_keys
-        .into_iter()
         .into_group_map_by(|(name, _)| (name.0, name.1));
 
     let mut aggregated_keys = Vec::new();
     for ((name, x), mut group) in groups {
-        group.sort_by_key(|v| v.0 .2);
+        group.sort_by_key(|v| v.0 .1);
         let result_key = format!("{name}_{x}_aggregated.json");
         eprintln!("concatenating {result_key}");
         // run a multipart copy to get this done
         multipart_concat(
             &mut client,
             &args.bucket,
-            group.iter().map(|g| &g.1),
+            group.iter().map(|g| g.1),
             &result_key,
         )
         .await?;
