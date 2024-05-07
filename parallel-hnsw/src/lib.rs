@@ -2588,6 +2588,32 @@ mod tests {
     }
 
     #[test]
+    fn test_no_extension() {
+        let size = 100_000;
+        let dimension = 1536;
+        let data: Vec<Vec<f32>> = (0..size)
+            .into_par_iter()
+            .map(move |i| {
+                let mut prng = StdRng::seed_from_u64(42_u64 + i as u64);
+                let vec = blotchy_random_vec(&mut prng, dimension);
+                assert_eq!(vec.len(), dimension);
+                vec
+            })
+            .collect();
+        let c = BigComparator {
+            data: Arc::new(data),
+        };
+        let vs: Vec<_> = (0..size).map(VectorId).collect();
+        let mut bp = BuildParameters::default();
+        bp.initial_partition_search.circulant_parameter_count = 0;
+        bp.optimization.search.circulant_parameter_count = 0;
+
+        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let recall = hnsw.stochastic_recall(bp.optimization);
+        assert_eq!(recall, 1.0);
+    }
+
+    #[test]
     fn test_circulant_extension() {
         let size = 100_000;
         let dimension = 1536;
@@ -2608,7 +2634,7 @@ mod tests {
         bp.initial_partition_search.circulant_parameter_count = 6;
         bp.optimization.search.circulant_parameter_count = 6;
 
-        let mut hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
         let recall = hnsw.stochastic_recall(bp.optimization);
         assert_eq!(recall, 1.0);
     }
@@ -2636,7 +2662,7 @@ mod tests {
         bp.initial_partition_search.random_link_count = 12;
         bp.optimization.search.random_link_count = 12;
 
-        let mut hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
         let recall = hnsw.stochastic_recall(bp.optimization);
 
         assert_eq!(recall, 1.0);
