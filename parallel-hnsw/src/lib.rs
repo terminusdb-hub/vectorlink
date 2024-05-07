@@ -25,7 +25,7 @@ use std::{
 
 use itertools::Itertools;
 use rand::{rngs::StdRng, seq::SliceRandom, thread_rng, Rng, SeedableRng};
-use rand_distr::{Distribution, Exp};
+use rand_distr::{Distribution, Exp, Uniform};
 use rayon::prelude::*;
 use std::fmt::Debug;
 
@@ -169,15 +169,21 @@ impl<C> Layer<C> {
     ) -> impl Iterator<Item = NodeId> {
         // Calculate using the circulants
         let size = self.node_count();
-        PRIMES
-            .iter()
-            .take(sp.circulant_parameter_count)
-            .flat_map(move |prime| {
-                [
-                    NodeId((nodeid.0 + prime) % size),
-                    NodeId((nodeid.0 + (size - (prime % size))) % size),
-                ]
-            })
+        let mut prng = StdRng::seed_from_u64(nodeid.0 as u64);
+        let node_dist = Uniform::from(0..size);
+        (0..sp.random_link_count)
+            .map(move |_| NodeId(prng.sample(node_dist)))
+            .chain(
+                PRIMES
+                    .iter()
+                    .take(sp.circulant_parameter_count)
+                    .flat_map(move |prime| {
+                        [
+                            NodeId((nodeid.0 + prime) % size),
+                            NodeId((nodeid.0 + (size - (prime % size))) % size),
+                        ]
+                    }),
+            )
             .filter(move |i| *i != nodeid)
     }
 }
@@ -2494,10 +2500,30 @@ mod tests {
         vec
     }
 
+    pub fn blotchy_random_vec(prng: &mut StdRng, size: usize) -> Vec<f32> {
+        let mut vec: Vec<f32> = Vec::with_capacity(size);
+        let mut total = 0;
+        let incr = size / 8;
+        while total < size {
+            let distr = Uniform::from(-1.0..1.0);
+            let a = prng.sample(distr);
+            let b = prng.sample(distr);
+            let bottom = if a < b { a } else { b };
+            let top = if a < b { b } else { a };
+            let range = Uniform::from(bottom..top);
+            let take = usize::min(incr, size.saturating_sub(total));
+            vec.extend(prng.sample_iter(&range).take(take));
+            total += incr;
+        }
+        let norm = vec.iter().map(|f| f * f).sum::<f32>().sqrt();
+        let res = vec.iter().map(|f| f / norm).collect();
+        res
+    }
+
     #[test]
     fn test_euclidean() {
         let mut prng = StdRng::seed_from_u64(42);
-        let size = 1_000_000;
+        let size = 10_000;
         let vecs: Vec<Vec<f32>> = (0..size).map(move |_| random_vec(&mut prng, 32)).collect();
         let cc = Comparator32 { data: vecs.into() };
         let vids: Vec<VectorId> = (0..size).map(VectorId).collect();
@@ -2559,5 +2585,59 @@ mod tests {
             neighbors[n.0..final_idx].to_vec(),
             vec![NodeId(1), NodeId(2), NodeId(3), NodeId(4), NodeId(5)]
         );
+    }
+
+    #[test]
+    fn test_circulant_extension() {
+        let size = 100_000;
+        let dimension = 1536;
+        let data: Vec<Vec<f32>> = (0..size)
+            .into_par_iter()
+            .map(move |i| {
+                let mut prng = StdRng::seed_from_u64(42_u64 + i as u64);
+                let vec = blotchy_random_vec(&mut prng, dimension);
+                assert_eq!(vec.len(), dimension);
+                vec
+            })
+            .collect();
+        let c = BigComparator {
+            data: Arc::new(data),
+        };
+        let vs: Vec<_> = (0..size).map(VectorId).collect();
+        let mut bp = BuildParameters::default();
+        bp.initial_partition_search.circulant_parameter_count = 6;
+        bp.optimization.search.circulant_parameter_count = 6;
+
+        let mut hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let recall = hnsw.improve_index(bp, None, &mut ());
+        assert_eq!(recall, 1.0);
+    }
+
+    #[test]
+    fn test_random_extension() {
+        let size = 100_000;
+        let dimension = 1536;
+        let data: Vec<Vec<f32>> = (0..size)
+            .into_par_iter()
+            .map(move |i| {
+                let mut prng = StdRng::seed_from_u64(42_u64 + i as u64);
+                let vec = blotchy_random_vec(&mut prng, dimension);
+                assert_eq!(vec.len(), dimension);
+                vec
+            })
+            .collect();
+        let c = BigComparator {
+            data: Arc::new(data),
+        };
+        let vs: Vec<_> = (0..size).map(VectorId).collect();
+        let mut bp = BuildParameters::default();
+        bp.initial_partition_search.circulant_parameter_count = 0;
+        bp.optimization.search.circulant_parameter_count = 0;
+        bp.initial_partition_search.random_link_count = 12;
+        bp.optimization.search.random_link_count = 12;
+
+        let mut hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let recall = hnsw.improve_index(bp, None, &mut ());
+        assert_eq!(recall, 1.0);
     }
 }

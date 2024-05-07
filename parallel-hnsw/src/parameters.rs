@@ -6,6 +6,7 @@ pub struct SearchParameters {
     pub upper_layer_candidate_count: usize,
     pub probe_depth: usize,
     pub circulant_parameter_count: usize,
+    pub random_link_count: usize,
 }
 
 impl Default for SearchParameters {
@@ -15,6 +16,7 @@ impl Default for SearchParameters {
             upper_layer_candidate_count: 300,
             probe_depth: 2,
             circulant_parameter_count: 6,
+            random_link_count: 0,
         }
     }
 }
@@ -61,6 +63,7 @@ impl Default for BuildParameters {
                 upper_layer_candidate_count: 6,
                 probe_depth: 2,
                 circulant_parameter_count: 6,
+                random_link_count: 0,
             },
         }
     }
