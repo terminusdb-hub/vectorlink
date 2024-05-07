@@ -32,9 +32,9 @@ use std::fmt::Debug;
 use crate::search::assert_layer_invariants;
 use crate::{priority_queue::PriorityQueue, search::match_within_epsilon};
 
-const PRIMES: [usize; 40] = [
-    2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
-    101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173,
+const PRIMES: [usize; 43] = [
+    1, 2, 59063, 79193, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+    73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173,
 ];
 
 pub enum WrappedBorrowable<'a, T: ?Sized, Borrowable: Deref<Target = T> + 'a> {
