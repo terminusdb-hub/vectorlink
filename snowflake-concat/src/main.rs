@@ -1,6 +1,9 @@
 use std::error::Error;
 
-use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
+use aws_sdk_s3::{
+    config::StalledStreamProtectionConfig,
+    types::{CompletedMultipartUpload, CompletedPart},
+};
 use clap::Parser;
 use itertools::Itertools;
 
@@ -106,6 +109,10 @@ async fn multipart_concat<S: AsRef<str>, I: Iterator<Item = S> + ExactSizeIterat
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Command::parse();
     let config = aws_config::load_from_env().await;
+    let config = config
+        .into_builder()
+        .stalled_stream_protection(StalledStreamProtectionConfig::disabled())
+        .build();
     let mut client = aws_sdk_s3::Client::new(&config);
     let mut all_objects = Vec::new();
     let mut continuation_token: Option<String> = None;
