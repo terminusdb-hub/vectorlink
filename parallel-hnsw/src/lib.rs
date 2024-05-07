@@ -2609,7 +2609,7 @@ mod tests {
         bp.optimization.search.circulant_parameter_count = 6;
 
         let mut hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
-        let recall = hnsw.improve_index(bp, None, &mut ());
+        let recall = hnsw.stochastic_recall(bp.optimization);
         assert_eq!(recall, 1.0);
     }
 
@@ -2637,7 +2637,8 @@ mod tests {
         bp.optimization.search.random_link_count = 12;
 
         let mut hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
-        let recall = hnsw.improve_index(bp, None, &mut ());
+        let recall = hnsw.stochastic_recall(bp.optimization);
+
         assert_eq!(recall, 1.0);
     }
 }
