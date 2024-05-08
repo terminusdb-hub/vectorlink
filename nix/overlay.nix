@@ -10,7 +10,7 @@
 # It also makes sure we can build poetry projects, for better or worse.
 let rustFlagsFor = {
       x86 = "-C target-feature=+sse3,+avx,+avx2";
-      arm = "-C target-feature=+v7,+neon";
+      arm = "-C target-feature=+neon";
     };
 in
 path:
