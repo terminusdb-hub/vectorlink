@@ -8,95 +8,131 @@ import os
 import traceback
 from collections import deque
 from datetime import datetime
+import boto3
+import pybars
+
+import struct
 
 identity = None
-directory = None
 chunk_size = 100
+
+s3 = boto3.client('s3')
 
 def retrieve_identity():
     from_env = os.getenv('VECTORIZER_IDENTITY')
     return from_env if from_env is not None else socket.getfqdn()
 
-def resolve_path(path):
-    rootdir = os.path.abspath(directory)
-    normalized = os.path.normpath(f'{rootdir}/{path}')
-    if not normalized.startswith(rootdir):
-        raise ValueError(f'path {path} is invalid')
+def byte_offset_for_line_number(bucket_name, index_key, line_number):
+    offset_in_index = line_number * 8
+    r = f'bytes={offset_in_index}-{offset_in_index+7}'
+    print(f'range: {r}')
 
-    return normalized
+    response=s3.get_object(
+        Bucket=bucket_name,
+        Key=index_key,
+        Range=f'bytes={offset_in_index}-{offset_in_index+7}'
+    )
+    data = response['Body'].read()
+    return struct.unpack('<q', data)[0]
 
-def start_(task, truncate=0, skip=0):
+def start_(task):
     global backend
     global chunk_size
     init = task.init()
-    input_file = resolve_path(init['input_file'])
-    output_file = resolve_path(init['output_file'])
+    # bucket name
+    # strings input key
+    # newline-index input key
+    # vector output key
+    # range
+    # template
+    bucket_name = init['bucket_name']
+    strings_key = init['strings_key']
+    newline_index_key = init['newline_index']
+    output_key = init['output_key']
+    start_line = int(init['start_line'])
+    end_line = int(init['end_line'])
+    n_strings = end_line - start_line + 1
 
-    print(f"Input file: {input_file}", file=sys.stderr)
-    print(f"Output file: {output_file}", file=sys.stderr)
+    segment_size = n_strings / 1000
+
+    template_string = init['template']
+    template = pybars.Compiler().compile(template_string)
 
     progress = task.progress()
     if progress is None:
-        # this is the first run. lets determine how large this file is
-        with open(input_file, 'r') as input_fp:
-            total = sum(1 for line in input_fp)
-            task.set_progress({'count': 0, 'total': total})
-    else:
-        total = progress['total']
+        # first run. let's start a multipart upload
+        upload_id = s3.create_multipart_upload(
+            Bucket=bucket_name,
+            Key=output_key)['UploadId']
+
+        progress = {'count': 0, 'upload_id': upload_id, 'parts':[]}
+        task.set_progress(progress)
+
+    start_byte = byte_offset_for_line_number(bucket_name, newline_index_key, start_line + progress['count'])
+    end_byte = byte_offset_for_line_number(bucket_name, newline_index_key, end_line + 1) - 1
+
+    print(f'start byte: {start_byte} end byte: {end_byte}')
 
     chunk = []
-    count = skip
 
-    with open(output_file, 'a+') as output_fp:
-        # truncate to a safe known size
-        output_fp.truncate(truncate)
-        output_fp.seek(0, os.SEEK_END)
+    embeddings_queued = 0
+    part_number = 1
+    prepared_part = bytearray()
+    obj = s3.get_object(Bucket=bucket_name, Key=strings_key, Range=f'bytes={start_byte}-{end_byte}')
+    for line in obj['Body'].iter_lines():
+        j = json.loads(line)
+        string = template(j)
+        chunk.append(string)
 
-        duration_queue = deque(maxlen=10)
-        with open(input_file, 'r') as input_fp:
-            start_time = datetime.now()
-            for line in input_fp:
-                # skip already processed lines
-                if skip != 0:
-                    skip -= 1
-                    if skip == 0:
-                        # this was our last skip.
-                        start_time = datetime.now()
-                    continue
+        if len(chunk) == chunk_size:
+            task.alive()
+            result = backend.process_chunk(chunk)
+            prepared_part.extend(result)
+            chunk = []
+            embeddings_queued += chunk_size
 
-                json_str = json.loads(line)
-                chunk.append(json_str)
-                if len(chunk) == chunk_size:
-                    task.alive()
-                    backend.process_chunk(chunk, output_fp)
-                    end_time = datetime.now()
-                    duration = (end_time - start_time).total_seconds()
-                    start_time = end_time
+        if embeddings_queued >= segment_size:
+            result = s3.upload_part(
+                Bucket=bucket_name,
+                Key=output_key,
+                UploadId=upload_id,
+                PartNumber=part_number,
+                Body=prepared_part
+            )
 
-                    rate = chunk_size / duration
+            etag = result['ETag']
+            progress['parts'].append({'PartNumber':part_number, 'ETag': etag})
+            progress['count'] += embeddings_queued
+            task.set_progress(progress)
+            prepared_part.clear()
+            part_number += 1
+            embeddings_queued = 0
 
-                    duration_queue.append(duration)
-                    avg_rate = (len(duration_queue) * chunk_size) / sum(duration_queue)
+    if len(chunk) != 0:
+        result = backend.process_chunk(chunk)
+        prepared_part.extend(result)
+        embeddings_queued += chunk_size
+    if embeddings_queued >= 0:
+        result = s3.upload_part(
+            Bucket=bucket_name,
+            Key=output_key,
+            UploadId=upload_id,
+            PartNumber=part_number,
+            Body=prepared_part
+        )
 
-                    count += len(chunk)
-                    task.set_progress({'count': count, 'total': total, 'rate': rate, 'avg_rate': avg_rate})
-                    chunk = []
-        if len(chunk) != 0:
-              backend.process_chunk(chunk, output_fp)
-              end_time = datetime.now()
-              duration = (end_time - start_time).total_seconds()
-              start_time = end_time
+        etag = result['ETag']
+        progress['parts'].append({'PartNumber':part_number, 'ETag': etag})
+        progress['count'] += embeddings_queued
+        task.set_progress(progress)
 
-              rate = len(chunk) / duration
+    response = s3.complete_multipart_upload(
+        Bucket=bucket_name,
+        Key=output_key,
+        MultipartUpload={'Parts': progress['parts']},
+        UploadId = upload_id)
 
-              duration_queue.append(duration)
-              avg_rate = ((len(duration_queue) - 1) * chunk_size + len(chunk)) / sum(duration_queue)
-              count += len(chunk)
-              task.set_progress({'count': count, 'total': total, 'rate': rate, 'avg_rate': avg_rate})
-
-        output_fp.flush()
-        os.fsync(output_fp.fileno())
-        task.finish(count)
+    task.finish(progress['count'])
 
 def start(task):
     task.start()
@@ -109,31 +145,8 @@ def start(task):
         task.finish_error(stack_trace)
 
 def resume(task):
-    # We have to figure out where we left off
-    # This is determined by the current file size. rounding that down
-    # to the nearest multiple of the vector size gets us a reliable
-    # count. This might be lower than the number in progress!
-    if task.status() == 'resuming':
-        task.resume()
-    init = task.init()
-    size = os.path.getsize(resolve_path(init['output_file']))
-    count = size // 4096
-    truncate_to = count * 4096
-
-    print(f'resuming after having already vectorized {count}', file=sys.stderr)
-    progress = task.progress()
-    total = None
-    if progress is not None:
-        total = progress.get('total')
-
-    if total is None:
-        with open(resolve_path(init['input_file']), 'r') as input_fp:
-            total = sum(1 for line in input_fp)
-
-    task.set_progress({'count': count, 'total': total})
-
     try:
-        start_(task, truncate=truncate_to, skip=count)
+        start_(task)
     except TaskInterrupted as e:
         pass
     except Exception as e:
@@ -141,7 +154,6 @@ def resume(task):
 
 def main():
     global etcd
-    global directory
     global identity
     global chunk_size
     global backend
@@ -149,16 +161,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--etcd', help='hostname of etcd server')
     parser.add_argument('--identity', help='the identity this worker will use when claiming tasks')
-    parser.add_argument('--directory', help='the directory where files are to be found')
     parser.add_argument('--chunk-size', type=int, help='the amount of vectors to process at once')
     parser.add_argument('--backend', type=str, default=os.getenv('VECTORIZER_BACKEND', 'bloom'), help='the backend to use for vectorization')
     args = parser.parse_args()
     identity = args.identity if args.identity is not None else retrieve_identity()
-
-    directory = args.directory
-    if directory is None:
-        directory = os.getenv('VECTORIZER_DIRECTORY')
-    print(f'using directory {directory}', file=sys.stderr)
 
     chunk_size = args.chunk_size
     if chunk_size is None:
@@ -171,9 +177,9 @@ def main():
         etcd = os.getenv('ETCD_HOST')
 
     if etcd is not None:
-        queue = TaskQueue('vectorizer', identity, host=etcd)
+        queue = TaskQueue(f'vectorizer/{args.backend}', identity, host=etcd)
     else:
-        queue = TaskQueue('vectorizer', identity)
+        queue = TaskQueue(f'vectorizer/{args.backend}', identity)
 
     backend = vectorize.init_backend(args.backend)
 
