@@ -109,7 +109,7 @@ impl TaskHandler for LineIndexTaskHandler {
             eprintln!("retrieved data");
             let mut data = dto.body;
 
-            let mut positions = Vec::new();
+            let mut positions = vec![0]; // first line starts at 0
             while let Some(bytes) =
                 keepalive!(live, data.try_next().await.map_err(|e| e.to_string())?)
             {
