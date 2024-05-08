@@ -34,6 +34,7 @@
         {
           vectorlink = pkgs.callPackage ./vectorlink {};
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
+          line-index = pkgs.callPackage ./line-index {};
           vectorlink-infra = pkgs.callPackage ./vectorlink-infra {};
           vectorlink-task-monitor = pkgs.callPackage python/vectorlink-task {};
           vectorlink-vectorize = pkgs.callPackage python/vectorlink-vectorize {};
@@ -46,6 +47,10 @@
           worker = {
             type = "app";
             program = "${p.vectorlink-worker}/bin/vectorlink-worker";
+          };
+          line-index = {
+            type = "app";
+            program = "${p.line-index}/bin/line-index";
           };
           task-monitor = {
             type = "app";
