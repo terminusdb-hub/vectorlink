@@ -6,8 +6,6 @@
 # arch-specific rust args for simd instructions, and we provide a
 # workspace dependency derivation that all projects can then depend
 # on.
-#
-# It also makes sure we can build poetry projects, for better or worse.
 let rustFlagsFor = {
       x86 = "-C target-feature=+sse3,+avx,+avx2";
       arm = "-C target-feature=+neon";
@@ -18,6 +16,7 @@ path:
 system:
 import nixpkgs {
   inherit system;
+  #config = { allowUnfree = true; cudaSupport = true; };
   overlays = [
     (import rust-overlay)
     (final: prev: rec {
@@ -47,8 +46,6 @@ import nixpkgs {
             cargoArtifacts = vl-workspace;
             cargoExtraArgs = "-p " + nameInfo.pname;
           } // args);
-
-      inherit (poetry2nix.lib.mkPoetry2Nix { pkgs = final; }) mkPoetryApplication defaultPoetryOverrides;
     })
   ];
 }

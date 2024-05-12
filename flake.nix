@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-23.11";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs?ref=nixos-unstable";
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -13,13 +14,9 @@
         nixpkgs.follows = "nixpkgs";
       };
     };
-    poetry2nix = {
-      url = "github:nix-community/poetry2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, crane, rust-overlay, poetry2nix }@inputs: (
+  outputs = { self, nixpkgs, nixpkgs-unstable, crane, rust-overlay }@inputs: (
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
@@ -30,14 +27,26 @@
       overlays = nixpkgsFor;
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
+            unstablepkgs = import nixpkgs-unstable {
+              inherit system;
+              config = {
+                allowUnfree = true;
+                cudaSupport = true;
+                cudaVersion = "12";
+              };
+            };
         in
         {
           vectorlink = pkgs.callPackage ./vectorlink {};
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
           line-index = pkgs.callPackage ./line-index {};
           vectorlink-infra = pkgs.callPackage ./vectorlink-infra {};
-          vectorlink-task-monitor = pkgs.callPackage python/vectorlink-task {};
-          vectorlink-vectorize = pkgs.callPackage python/vectorlink-vectorize {};
+          vectorlink-task-monitor = unstablepkgs.callPackage python/vectorlink-task {
+            config = { allowUnfree = true;
+                       cudaSupport = true;
+                     };
+          };
+          vectorlink-vectorize = unstablepkgs.callPackage python/vectorlink-vectorize {};
         }
       );
 
