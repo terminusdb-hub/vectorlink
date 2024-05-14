@@ -1,6 +1,7 @@
 #![feature(portable_simd)]
 #![feature(trait_upcasting)]
 
+use std::fs;
 use std::io::Read;
 use std::io::Write;
 use std::os::unix::fs::FileExt;
@@ -285,6 +286,17 @@ enum Commands {
         target_vector_file: String,
         #[arg(short, long)]
         vector_size: usize,
+    },
+
+    FanoutVecs {
+        source_vector_file: String,
+        target_vector_dir: String,
+        #[arg(short, long)]
+        vector_size: usize,
+        #[arg(short = 'c', long)]
+        selection_count: usize,
+        #[arg(short, long)]
+        single_selection_proportion: f32,
     },
 }
 
@@ -820,6 +832,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
 
             target_vector_file.flush().unwrap();
+        }
+        Commands::FanoutVecs {
+            source_vector_file,
+            target_vector_dir,
+            selection_count,
+            single_selection_proportion,
+            vector_size,
+        } => {
+            assert!(single_selection_proportion <= 1.0);
+            // figure out vector count
+            let source_vector_file_size =
+                fs::metadata(&source_vector_file).unwrap().size() as usize;
+            let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
+            let vector_count = source_vector_file_size / vector_byte_size;
+            assert_eq!(0, source_vector_file_size % vector_byte_size);
+
+            let single_selection_size =
+                (single_selection_proportion * vector_count as f32).ceil() as usize;
+
+            let target_path: PathBuf = target_vector_dir.into();
+            fs::create_dir_all(&target_path).unwrap();
+
+            // assume scramble sizes are large enough to warrant full
+            // reordering rather than random extraction.
+            let mut rng = thread_rng();
+            for i in 0..selection_count {
+                let mut indexes: Vec<usize> = (0..vector_count).collect();
+                indexes.shuffle(&mut rng);
+                indexes.truncate(single_selection_size);
+
+                // resort so we can do log searches
+                indexes.sort();
+
+                let buf = unsafe {
+                    std::slice::from_raw_parts(
+                        indexes.as_ptr() as *mut u8,
+                        vector_size * std::mem::size_of::<f32>(),
+                    )
+                };
+
+                fs::write(target_path.join(format!("{i}.map")), buf).unwrap();
+
+                let input_vec_file = File::open(&source_vector_file).unwrap();
+                let mut output_vec_file =
+                    File::create(target_path.join(format!("{i}.vecs"))).unwrap();
+
+                let mut buf = vec![0_u8; vector_byte_size];
+                for i in indexes {
+                    let offset = i * vector_byte_size;
+                    input_vec_file
+                        .read_exact_at(&mut buf, offset as u64)
+                        .unwrap();
+
+                    output_vec_file.write_all(&buf).unwrap();
+                }
+
+                output_vec_file.flush().unwrap();
+            }
         }
     }
 
