@@ -12,7 +12,7 @@ let rustFlagsFor = {
     };
 in
 path:
-{nixpkgs, rust-overlay, crane, poetry2nix, ...}:
+{nixpkgs, rust-overlay, crane, ...}:
 system:
 import nixpkgs {
   inherit system;
