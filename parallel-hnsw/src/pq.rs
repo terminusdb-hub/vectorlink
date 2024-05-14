@@ -63,7 +63,7 @@ impl<
         let mut result = [0; QUANTIZED_SIZE];
         for (ix, v) in vec.chunks(CENTROID_SIZE).enumerate() {
             let v: &[f32; CENTROID_SIZE] = unsafe { &*(v.as_ptr() as *const [f32; CENTROID_SIZE]) };
-            let distances = self.hnsw.search(AbstractVector::Unstored(v), sp);
+            let distances = timeit!(self.hnsw.search(AbstractVector::Unstored(v), sp));
             let quant = distances[0].0 .0 as u16; // TODO maybe debug assert
             result[ix] = quant;
         }

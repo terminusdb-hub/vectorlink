@@ -435,9 +435,9 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+    use crate::vecmath::{normalize_vec, normalized_cosine_distance};
     use parallel_hnsw::{parameters::OptimizationParameters, pq::VectorSelector, Comparator};
     use rand::{distributions::Uniform, prelude::*};
-    use vectorlink::vecmath::{normalize_vec, normalized_cosine_distance};
 
     #[derive(Clone)]
     pub struct MemoryOpenAIComparator {
@@ -536,7 +536,7 @@ mod tests {
             Centroid16Comparator,
             Quantized16Comparator,
             MemoryOpenAIComparator,
-        > = QuantizedHnsw::new(number_of_centroids, c, pq_build_parameters);
+        > = QuantizedHnsw::new(number_of_centroids, c, pq_build_parameters, &mut ());
 
         let op = OptimizationParameters::default();
         let res = quantized_hnsw.stochastic_recall(op);

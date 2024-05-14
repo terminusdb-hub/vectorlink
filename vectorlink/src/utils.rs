@@ -42,7 +42,6 @@ pub fn test_quantization<
     // sample_var = sum((error - sample_avg)^2)/|errors|
 
     let fc = hnsw.full_comparator();
-
     let errors = vec![0.0_f32; hnsw.vector_count()];
 
     eprintln!("starting processing of vector chunks");

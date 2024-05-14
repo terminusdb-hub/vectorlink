@@ -1,3 +1,5 @@
+#[macro_use]
+pub mod utils;
 pub mod bigvec;
 pub mod parameters;
 pub mod pq;
