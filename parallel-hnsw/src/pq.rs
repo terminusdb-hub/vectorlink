@@ -410,6 +410,33 @@ impl<
     pub fn build_parameters_for_improve_index(&self) -> BuildParameters {
         self.hnsw.build_parameters
     }
+
+    pub fn stochastic_reconstruction_cost(&self, proportion: f32) -> (f32, f32) {
+        let total = self.hnsw.vector_count();
+        let selection: usize = (total as f32 * proportion).ceil() as usize;
+        let fc = self.full_comparator();
+        let qc = self.quantized_comparator();
+        let mut costs: Vec<f32> = Vec::with_capacity(selection);
+        for i in 0..selection {
+            let v = VectorId(i);
+            let vector = fc.lookup(v);
+            let quantized = qc.lookup(v);
+            let reconstructed = self.quantizer.reconstruct(&quantized);
+            let mut cost = 0.0;
+            for i in 0..vector.len() {
+                cost += (vector[i] - reconstructed[i]).powi(2);
+            }
+            costs.push(cost.sqrt())
+        }
+        let sum_cost: f32 = costs.iter().sum();
+        let avg_cost = sum_cost / (selection as f32);
+        let sigma = costs
+            .iter()
+            .map(|c| (c - avg_cost).powi(2))
+            .sum::<f32>()
+            .sqrt();
+        (avg_cost, sigma)
+    }
 }
 
 impl<
@@ -976,6 +1003,9 @@ mod tests {
 
         let mut hnsw: QuantizedHnsw<1536, 16, 96, CentroidComparator16, QuantizedComparator16, _> =
             QuantizedHnsw::new(centroids, fc, bp, &mut ());
+        let (avg, std) = hnsw.stochastic_reconstruction_cost(1.0);
+        eprintln!("Average cost: {avg}");
+        eprintln!("Standard deviation: {std}");
         let recall = hnsw.improve_neighbors(bp.hnsw.optimization, None);
         assert_eq!(recall, 1.0)
     }
