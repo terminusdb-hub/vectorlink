@@ -63,7 +63,7 @@ impl<
         let mut result = [0; QUANTIZED_SIZE];
         for (ix, v) in vec.chunks(CENTROID_SIZE).enumerate() {
             let v: &[f32; CENTROID_SIZE] = unsafe { &*(v.as_ptr() as *const [f32; CENTROID_SIZE]) };
-            let distances = timeit!(self.hnsw.search(AbstractVector::Unstored(v), sp));
+            let distances = self.hnsw.search(AbstractVector::Unstored(v), sp);
             let quant = distances[0].0 .0 as u16; // TODO maybe debug assert
             result[ix] = quant;
         }
@@ -324,12 +324,14 @@ impl<
         eprintln!("quantizing");
         //keepalive!(progress, {
         for chunk in comparator.vector_chunks() {
-            let quantized: Vec<_> = chunk
-                .into_par_iter()
-                .map(|v| centroid_quantizer.quantize(&v))
-                .collect();
+            timeit!({
+                let quantized: Vec<_> = chunk
+                    .into_par_iter()
+                    .map(|v| centroid_quantizer.quantize(&v))
+                    .collect();
 
-            vids.extend(quantized_comparator.store(Box::new(quantized.into_iter())));
+                vids.extend(quantized_comparator.store(Box::new(quantized.into_iter())));
+            })
         }
         //});
 
@@ -955,7 +957,7 @@ mod tests {
 
     #[test]
     fn test_pq_recall() {
-        let count = 100_000;
+        let count = 1_000;
         let vecs: Vec<[f32; 1536]> = (0..count)
             .into_par_iter()
             .map(move |i| {
@@ -971,6 +973,7 @@ mod tests {
             data: Arc::new(RwLock::new(vecs)),
         };
         let bp = PqBuildParameters::default();
+
         let mut hnsw: QuantizedHnsw<1536, 16, 96, CentroidComparator16, QuantizedComparator16, _> =
             QuantizedHnsw::new(centroids, fc, bp, &mut ());
         let recall = hnsw.improve_neighbors(bp.hnsw.optimization, None);

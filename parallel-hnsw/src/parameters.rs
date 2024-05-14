@@ -62,16 +62,32 @@ impl Default for BuildParameters {
                 number_of_candidates: 6,
                 upper_layer_candidate_count: 6,
                 probe_depth: 2,
-                circulant_parameter_count: 6,
+                circulant_parameter_count: 0,
                 random_link_count: 0,
             },
         }
     }
 }
 
-#[derive(Default, Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct PqBuildParameters {
     pub centroids: BuildParameters,
     pub hnsw: BuildParameters,
     pub quantized_search: SearchParameters,
+}
+
+impl Default for PqBuildParameters {
+    fn default() -> Self {
+        Self {
+            centroids: Default::default(),
+            hnsw: Default::default(),
+            quantized_search: SearchParameters {
+                number_of_candidates: 10,
+                upper_layer_candidate_count: 6,
+                probe_depth: 2,
+                circulant_parameter_count: 0,
+                random_link_count: 0,
+            },
+        }
+    }
 }
