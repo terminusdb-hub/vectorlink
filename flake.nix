@@ -48,6 +48,7 @@
                      };
           };
           vectorlink-vectorize = unstablepkgs.callPackage python/vectorlink-vectorize {};
+          create-vectorize-tasks = unstablepkgs.callPackage python/create-vectorize-task {};
         }
       );
 
@@ -69,6 +70,10 @@
           backend = {
             type = "app";
             program = "${p.vectorlink-vectorize}/bin/backend";
+          };
+          create-vectorize-tasks = {
+            type = "app";
+            program = "${p.create-vectorize-tasks}/bin/create-vectorize-tasks";
           };
         });
     }
