@@ -83,7 +83,11 @@ def start_(task):
         if line == "" or line.isspace():
             continue
 
-        j = json.loads(line)
+        try:
+            j = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise Exception(f'invalid json line: {j}')
+
         string = template(j)
         chunk.append(string)
 
