@@ -80,6 +80,9 @@ def start_(task):
     prepared_part = bytearray()
     obj = s3.get_object(Bucket=bucket_name, Key=strings_key, Range=f'bytes={start_byte}-{end_byte}')
     for line in obj['Body'].iter_lines():
+        if line == "":
+            continue
+
         j = json.loads(line)
         string = template(j)
         chunk.append(string)
