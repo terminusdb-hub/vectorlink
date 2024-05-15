@@ -261,7 +261,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         eprintln!("concatenating {result_key}");
         aggregated_key_tasks.push(tokio::spawn(multipart_concat(
             client.clone(),
-            args.source_bucket.clone(),
+            args.destination_bucket.clone(),
             args.destination_bucket.clone(),
             group.into_iter().map(|g| g.1).collect(),
             result_key.clone(),
@@ -288,7 +288,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         eprintln!("concatenating {result_key}");
         aggregated_key_tasks.push(tokio::spawn(multipart_concat(
             client.clone(),
-            args.source_bucket.clone(),
+            args.destination_bucket.clone(),
             args.destination_bucket.clone(),
             group.into_iter().map(|g| g.1).collect(),
             result_key.clone(),
