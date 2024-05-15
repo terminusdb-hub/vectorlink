@@ -197,7 +197,7 @@ def main():
             print('wow a task: ' + task.status(), file=sys.stderr)
             match task.status():
                 case 'pending':
-                    print(f'starting task {task.id}..', file=sys.stderr)
+                    print(f'starting task {task.task_id}..', file=sys.stderr)
                     start(task)
                 case 'resuming':
                     resume(task)
