@@ -71,7 +71,7 @@ def start_(task):
     start_byte = byte_offset_for_line_number(bucket_name, newline_index_key, start_line + progress['count'])
     end_byte = byte_offset_for_line_number(bucket_name, newline_index_key, end_line + 1) - 1
 
-    print(f'start byte: {start_byte} end byte: {end_byte}')
+    print(f'start byte: {start_byte} end byte: {end_byte}', file=sys.stderr)
 
     chunk = []
 
