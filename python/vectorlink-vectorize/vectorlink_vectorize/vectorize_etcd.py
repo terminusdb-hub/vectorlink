@@ -53,7 +53,7 @@ def start_(task):
     end_line = int(init['end_line'])
     n_strings = end_line - start_line + 1
 
-    segment_size = n_strings / 1000
+    segment_size = 25000;
 
     template_string = init['template']
     template = pybars.Compiler().compile(template_string)
