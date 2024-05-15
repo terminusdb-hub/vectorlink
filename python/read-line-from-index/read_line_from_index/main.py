@@ -22,7 +22,7 @@ def main():
     parser.add_argument('--bucket-name', required=True)
     parser.add_argument('--strings-key', required=True)
     parser.add_argument('--newline-index', required=True)
-    parser.add_argument('line')
+    parser.add_argument('line', type=int)
 
     args = parser.parse_args()
 
