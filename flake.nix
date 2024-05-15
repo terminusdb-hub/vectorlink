@@ -49,6 +49,7 @@
           };
           vectorlink-vectorize = unstablepkgs.callPackage python/vectorlink-vectorize {};
           create-vectorize-tasks = unstablepkgs.callPackage python/create-vectorize-task {};
+          read-line-from-index = unstablepkgs.callPackage python/read-line-from-index {};
         }
       );
 
@@ -74,6 +75,10 @@
           create-vectorize-tasks = {
             type = "app";
             program = "${p.create-vectorize-tasks}/bin/create-vectorize-tasks";
+          };
+          read-line-from-index = {
+            type = "app";
+            program = "${p.read-line-from-index}/bin/read-line-from-index";
           };
         });
     }
