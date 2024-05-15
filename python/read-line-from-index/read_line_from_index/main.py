@@ -30,7 +30,7 @@ def main():
     start_byte = byte_offset_for_line_number(args.bucket_name, args.newline_index, args.line)
     end_byte = byte_offset_for_line_number(args.bucket_name, args.newline_index, args.line + 1) - 1
 
-    obj = s3.get_object(Bucket=bucket_name, Key=strings_key, Range=f'bytes={start_byte}-{end_byte}')
+    obj = s3.get_object(Bucket=args.bucket_name, Key=args.strings_key, Range=f'bytes={start_byte}-{end_byte}')
     print(obj['Body'].read())
 
 if __name__ == "__main__":
