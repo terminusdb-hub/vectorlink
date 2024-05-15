@@ -25,12 +25,12 @@ def retrieve_identity():
 def byte_offset_for_line_number(bucket_name, index_key, line_number):
     offset_in_index = line_number * 8
     r = f'bytes={offset_in_index}-{offset_in_index+7}'
-    print(f'range: {r}')
+    print(f'range in byte index: {r}', file=sys.stderr)
 
     response=s3.get_object(
         Bucket=bucket_name,
         Key=index_key,
-        Range=f'bytes={offset_in_index}-{offset_in_index+7}'
+        Range=r
     )
     data = response['Body'].read()
     return struct.unpack('<q', data)[0]
