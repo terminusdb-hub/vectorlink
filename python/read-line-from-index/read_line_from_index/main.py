@@ -1,6 +1,7 @@
 import boto3
 import argparse
 import struct
+import sys
 
 s3 = boto3.client('s3')
 
