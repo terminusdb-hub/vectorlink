@@ -106,22 +106,31 @@ impl TaskHandler for LineIndexTaskHandler {
                     .await
                     .map_err(|e| e.to_string())?
             );
-            eprintln!("retrieved data");
             let mut data = dto.body;
 
-            let mut positions = vec![0]; // first line starts at 0
-            while let Some(bytes) =
-                keepalive!(live, data.try_next().await.map_err(|e| e.to_string())?)
-            {
-                positions.extend(
-                    bytes
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, b)| **b == b'\n')
-                        .map(|(ix, _)| ix + chunk_size * i),
-                );
+            let mut positions = Vec::new();
+            if start == 0 {
+                // first block so we add a 0 for the first line
+                positions.push(0);
             }
-            eprintln!("discovered {} newlines", positions.len());
+            let mut chunk_len = 0;
+            keepalive!(live, {
+                while let Some(bytes) = data.try_next().await.map_err(|e| e.to_string())? {
+                    chunk_len += bytes.len();
+                    positions.extend(
+                        bytes
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, b)| **b == b'\n')
+                            .map(|(ix, _)| ix + chunk_size * i),
+                    );
+                }
+            });
+            eprintln!(
+                "discovered {} newlines in {} bytes",
+                positions.len(),
+                chunk_len
+            );
 
             let result = {
                 let position_bytes = unsafe {
