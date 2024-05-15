@@ -86,7 +86,7 @@ def start_(task):
         try:
             j = json.loads(line)
         except json.JSONDecodeError as e:
-            raise Exception(f'invalid json line: {j}')
+            raise Exception(f'invalid json line: {line}')
 
         string = template(j)
         chunk.append(string)
