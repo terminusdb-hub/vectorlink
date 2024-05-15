@@ -116,14 +116,14 @@ impl TaskHandler for LineIndexTaskHandler {
             let mut chunk_len = 0;
             keepalive!(live, {
                 while let Some(bytes) = data.try_next().await.map_err(|e| e.to_string())? {
-                    chunk_len += bytes.len();
                     positions.extend(
                         bytes
                             .iter()
                             .enumerate()
                             .filter(|(_, b)| **b == b'\n')
-                            .map(|(ix, _)| ix + chunk_size * i),
+                            .map(|(ix, _)| ix + chunk_len + chunk_size * i),
                     );
+                    chunk_len += bytes.len();
                 }
             });
             eprintln!(
