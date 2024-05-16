@@ -26,8 +26,8 @@ def main():
         template = template_file.read()
 
     task_count = int((args.line_count + args.lines_per_task - 1 ) / args.lines_per_task)
-    if task_count > args.max_task_count - args.skip_tasks:
-        task_count = args.max_task_count - args.skip_tasks
+    if task_count > args.max_task_count + args.skip_tasks:
+        task_count = args.max_task_count + args.skip_tasks
 
     for task_index in range(args.skip_tasks,task_count):
         start_line = task_index * args.lines_per_task;
