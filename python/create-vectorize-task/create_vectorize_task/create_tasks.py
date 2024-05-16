@@ -13,6 +13,7 @@ def main():
     parser.add_argument('--line-count', type=int, required=True)
     parser.add_argument('--lines-per-task', type=int, required=True)
     parser.add_argument('--output-key', required=True)
+    parser.add_argument('--max-task-count', type=int, required=True)
     parser.add_argument('--skip-tasks', type=int, required=True)
 
     args = parser.parse_args()
@@ -25,9 +26,10 @@ def main():
         template = template_file.read()
 
     task_count = int((args.line_count + args.lines_per_task - 1 ) / args.lines_per_task)
-    upper_task_count = task_count + args.skip_tasks
+    if task_count > args.max_task_count - args.skip_tasks:
+        task_count = args.max_task_count - args.skip_tasks
 
-    for task_index in range(args.skip_tasks,upper_task_count):
+    for task_index in range(args.skip_tasks,task_count):
         start_line = task_index * args.lines_per_task;
         end_line = (task_index + 1) * args.lines_per_task - 1;
         if end_line >= args.line_count:
