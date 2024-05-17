@@ -533,6 +533,14 @@ mod tests {
             .powf(0.5)
     }
 
+    fn euclidean8(v1: &[f32; 8], v2: &[f32; 8]) -> f32 {
+        v1.iter()
+            .zip(v2.iter())
+            .map(|(f1, f2)| (f1 - f2).powi(2))
+            .sum::<f32>()
+            .powf(0.5)
+    }
+
     fn cosine1536(v1: &[f32; 1536], v2: &[f32; 1536]) -> f32 {
         normalize_cosine_distance(
             v1.iter()
@@ -641,6 +649,96 @@ mod tests {
 
     impl VectorStore for QuantizedComparator16 {
         type T = <QuantizedComparator16 as Comparator>::T;
+
+        fn store(&mut self, i: Box<dyn Iterator<Item = Self::T>>) -> Vec<VectorId> {
+            let mut data = self.data.write().unwrap();
+            let vid = data.len();
+            let mut vectors: Vec<VectorId> = Vec::new();
+            data.extend(i.enumerate().map(|(i, v)| {
+                vectors.push(VectorId(vid + i));
+                v
+            }));
+            vectors
+        }
+    }
+
+    #[derive(Clone)]
+    struct CentroidComparator8 {
+        data: Arc<Vec<[f32; 8]>>,
+    }
+
+    impl Comparator for CentroidComparator8 {
+        type T = [f32; 8];
+        type Borrowable<'a> = &'a Self::T;
+        fn lookup(&self, v: crate::VectorId) -> Self::Borrowable<'_> {
+            &self.data[v.0]
+        }
+
+        fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
+            euclidean8(v1, v2)
+        }
+    }
+
+    impl CentroidComparatorConstructor for CentroidComparator8 {
+        fn new(centroids: Vec<Self::T>) -> Self {
+            Self {
+                data: Arc::new(centroids),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    struct QuantizedComparator8 {
+        cc: CentroidComparator8,
+        data: Arc<RwLock<Vec<[u16; 192]>>>,
+    }
+
+    impl PartialDistance for QuantizedComparator8 {
+        fn partial_distance(&self, _i: u16, _j: u16) -> f32 {
+            todo!()
+        }
+    }
+
+    impl Comparator for QuantizedComparator8 {
+        type T = [u16; 192];
+        type Borrowable<'a> = ReadLockedVec<'a, Self::T>;
+        fn lookup(&self, v: crate::VectorId) -> Self::Borrowable<'_> {
+            ReadLockedVec {
+                lock: self.data.read().unwrap(),
+                id: v,
+            }
+        }
+
+        fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
+            let v_reconstruct1: Vec<f32> = v1
+                .iter()
+                .flat_map(|i| self.cc.lookup(VectorId(*i as usize)).iter().copied())
+                .collect();
+            let v_reconstruct2: Vec<f32> = v2
+                .iter()
+                .flat_map(|i| self.cc.lookup(VectorId(*i as usize)).iter().copied())
+                .collect();
+            let mut ar1 = [0.0_f32; 1536];
+            let mut ar2 = [0.0_f32; 1536];
+            ar1.copy_from_slice(&v_reconstruct1);
+            ar2.copy_from_slice(&v_reconstruct2);
+            cosine1536(&ar1, &ar2)
+        }
+    }
+
+    impl QuantizedComparatorConstructor for QuantizedComparator8 {
+        type CentroidComparator = CentroidComparator8;
+
+        fn new(cc: &Self::CentroidComparator) -> Self {
+            Self {
+                cc: cc.clone(),
+                data: Default::default(),
+            }
+        }
+    }
+
+    impl VectorStore for QuantizedComparator8 {
+        type T = <QuantizedComparator8 as Comparator>::T;
 
         fn store(&mut self, i: Box<dyn Iterator<Item = Self::T>>) -> Vec<VectorId> {
             let mut data = self.data.write().unwrap();
@@ -1002,6 +1100,34 @@ mod tests {
         let bp = PqBuildParameters::default();
 
         let mut hnsw: QuantizedHnsw<1536, 16, 96, CentroidComparator16, QuantizedComparator16, _> =
+            QuantizedHnsw::new(centroids, fc, bp, &mut ());
+        let (avg, std) = hnsw.stochastic_reconstruction_cost(1.0);
+        eprintln!("Average cost: {avg}");
+        eprintln!("Standard deviation: {std}");
+        let recall = hnsw.improve_neighbors(bp.hnsw.optimization, None);
+        assert_eq!(recall, 1.0)
+    }
+
+    #[test]
+    fn test_pq_8_recall() {
+        let count = 1_000;
+        let vecs: Vec<[f32; 1536]> = (0..count)
+            .into_par_iter()
+            .map(move |i| {
+                let mut prng = StdRng::seed_from_u64(42_u64 + i as u64);
+                let mut arr = [0.0_f32; 1536];
+                let v = random_normed_vec(&mut prng, 1536);
+                arr.copy_from_slice(&v);
+                arr
+            })
+            .collect();
+        let centroids = 65535;
+        let fc = AIComparator {
+            data: Arc::new(RwLock::new(vecs)),
+        };
+        let bp = PqBuildParameters::default();
+
+        let mut hnsw: QuantizedHnsw<1536, 8, 192, CentroidComparator8, QuantizedComparator8, _> =
             QuantizedHnsw::new(centroids, fc, bp, &mut ());
         let (avg, std) = hnsw.stochastic_reconstruction_cost(1.0);
         eprintln!("Average cost: {avg}");
