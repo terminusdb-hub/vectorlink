@@ -198,7 +198,7 @@ def main():
     try:
         while True:
             task = queue.next_task()
-            print('wow a task: ' + task.status(), file=sys.stderr)
+            print('picking up task: ' + task.task_id, file=sys.stderr)
             match task.status():
                 case 'pending':
                     print(f'starting task {task.task_id}..', file=sys.stderr)
