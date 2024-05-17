@@ -94,6 +94,7 @@ def start_(task):
         if len(chunk) == chunk_size:
             task.alive()
             result = backend.process_chunk(chunk)
+            task.alive()
             prepared_part.extend(result)
             chunk = []
             embeddings_queued += chunk_size
@@ -152,6 +153,7 @@ def start(task):
         task.finish_error(stack_trace)
 
 def resume(task):
+    task.resume()
     try:
         start_(task)
     except TaskInterrupted as e:
