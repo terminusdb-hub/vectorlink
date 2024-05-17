@@ -68,6 +68,10 @@
             type = "app";
             program = "${p.vectorlink-task-monitor}/bin/task-monitor";
           };
+          vectorize-server = {
+            type = "app";
+            program = "${p.vectorlink-vectorize}/bin/vectorize-server";
+          };
           backend = {
             type = "app";
             program = "${p.vectorlink-vectorize}/bin/backend";
