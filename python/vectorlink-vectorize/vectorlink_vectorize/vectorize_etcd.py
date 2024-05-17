@@ -67,6 +67,8 @@ def start_(task):
 
         progress = {'count': 0, 'upload_id': upload_id, 'parts':[]}
         task.set_progress(progress)
+    else:
+        upload_id = progress['upload_id']
 
     start_byte = byte_offset_for_line_number(bucket_name, newline_index_key, start_line + progress['count'])
     end_byte = byte_offset_for_line_number(bucket_name, newline_index_key, end_line + 1) - 1
