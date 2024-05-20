@@ -24,7 +24,7 @@ To invoke the server, you can run it as follows:
 You can compile the system with cargo:
 
 ```shell
-cargo compile --release
+cargo build --release
 ```
 
 ## Running with docker-compose
