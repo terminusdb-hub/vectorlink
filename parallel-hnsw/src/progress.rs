@@ -3,6 +3,7 @@ use std::any::Any;
 use thiserror::Error;
 
 pub struct ProgressUpdate {
+    // TODO: this should probably not be an arbitrary json value
     pub state: serde_json::Value,
 }
 #[derive(Debug, Error)]

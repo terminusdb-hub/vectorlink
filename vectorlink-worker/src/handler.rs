@@ -30,6 +30,7 @@ pub struct VectorlinkTaskHandler;
 impl TaskHandler for VectorlinkTaskHandler {
     type Init = BuildIndexRequest;
 
+    // TODO: actual progress should not be an arbitrary json object but a meaningful serializable state object.
     type Progress = Value;
 
     type Complete = BuildIndexCompletion;
@@ -71,6 +72,7 @@ impl TaskHandler for VectorlinkTaskHandler {
         })
         .unwrap();
 
+        // TODO: this should obviously not be a fake value
         Ok(BuildIndexCompletion { recall: 0.5 })
     }
 }
