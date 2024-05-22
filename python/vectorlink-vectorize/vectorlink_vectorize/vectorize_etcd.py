@@ -93,6 +93,9 @@ def start_(task):
         string = template(j)
         chunk.append(string)
 
+        # It doesn't make sense to embed each string individually. We
+        # collect chunk_size strings to embed at once to amortize the
+        # cost of sending stuff to the gpu.
         if len(chunk) == chunk_size:
             task.alive()
             result = backend.process_chunk(chunk)
@@ -101,6 +104,9 @@ def start_(task):
             chunk = []
             embeddings_queued += chunk_size
 
+        # Upload parts in an S3 multipart upload have to be at least
+        # 5MB (except for the final part). We therefore hold off from
+        # uploading a part until we have that much.
         if embeddings_queued >= segment_size:
             result = s3.upload_part(
                 Bucket=bucket_name,
@@ -118,6 +124,7 @@ def start_(task):
             part_number += 1
             embeddings_queued = 0
 
+    # Do a final embedding and upload for the remainder
     if len(chunk) != 0:
         result = backend.process_chunk(chunk)
         prepared_part.extend(result)
