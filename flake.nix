@@ -41,7 +41,6 @@
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
           line-index = pkgs.callPackage ./line-index {};
           snowflake-concat = pkgs.callPackage ./snowflake-concat {};
-          vectorlink-infra = pkgs.callPackage ./vectorlink-infra {};
           vectorlink-task-monitor = unstablepkgs.callPackage python/vectorlink-task {
             config = { allowUnfree = true;
                        cudaSupport = true;

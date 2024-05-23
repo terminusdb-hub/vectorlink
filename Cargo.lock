@@ -235,30 +235,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aws-sdk-ec2"
-version = "1.34.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b58453a3033a5c2e1631abec61b6915c507a726d628a0c2d7b81578d81be1b3"
-dependencies = [
- "aws-credential-types",
- "aws-runtime",
- "aws-smithy-async",
- "aws-smithy-http",
- "aws-smithy-json",
- "aws-smithy-query",
- "aws-smithy-runtime",
- "aws-smithy-runtime-api",
- "aws-smithy-types",
- "aws-smithy-xml",
- "aws-types",
- "fastrand",
- "http 0.2.12",
- "once_cell",
- "regex-lite",
- "tracing",
-]
-
-[[package]]
 name = "aws-sdk-s3"
 version = "1.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3126,15 +3102,6 @@ dependencies = [
  "url",
  "urlencoding",
  "vectorlink-store",
-]
-
-[[package]]
-name = "vectorlink-infra"
-version = "0.1.0"
-dependencies = [
- "aws-config",
- "aws-sdk-ec2",
- "tokio",
 ]
 
 [[package]]

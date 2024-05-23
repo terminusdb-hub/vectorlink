@@ -3,7 +3,6 @@ resolver = "2"
 members = [ "line-index",
 "parallel-hnsw", "snowflake-concat",
 "vectorlink",
-"vectorlink-infra",
 "vectorlink-store",
 "vectorlink-task",
 "vectorlink-worker"]
