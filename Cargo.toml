@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [ "line-index",
-"parallel-hnsw", "snowflake-concat",
+"parallel-hnsw",
 "vectorlink",
 "vectorlink-store",
 "vectorlink-task",
