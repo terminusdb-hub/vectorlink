@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let revision = process_existing_tasks(&mut client).await?;
 
     // then we can start our watch
-    process_new_tasks(&mut client, revision).await?;
+    process_new_tasks(&mut client, revision + 1).await?;
 
     Ok(())
 }
@@ -76,6 +76,7 @@ async fn process_new_tasks(client: &mut Client, revision: i64) -> Result<(), etc
             TASKS_PREFIX,
             Some(
                 WatchOptions::new()
+                    .with_prefix()
                     .with_start_revision(revision)
                     .with_filters([WatchFilterType::NoDelete])
                     .with_fragment(),
@@ -113,6 +114,10 @@ async fn try_enqueue_task(client: &mut Client, kv: &KeyValue) -> Result<(), etcd
             // nothing to do for this task
         }
         Err(e) => {
+            eprintln!(
+                "unparsable task {:?}: {e}",
+                kv.key_str().unwrap_or("with non-string key")
+            );
             // yikes, a task on the queue is not good. We should immediately error the task, if it is still there in that shape.
             let _ = client.txn(Txn::new()
                        .when([
@@ -133,8 +138,7 @@ async fn enqueue_task(client: &mut Client, task_key: &[u8]) -> Result<(), etcd_c
     let task_id = task_key_task_id(task_key);
     let claim = claim_key(task_id);
     let queue = queue_key(task_id);
-    format!("enqueue {:?}", std::str::from_utf8(task_key));
-    let _result = client
+    let result = client
         .txn(
             Txn::new()
                 .when([
@@ -144,6 +148,10 @@ async fn enqueue_task(client: &mut Client, task_key: &[u8]) -> Result<(), etcd_c
                 .and_then([TxnOp::put(queue, b"", None)]),
         )
         .await?;
+
+    if result.succeeded() {
+        eprintln!("enqueue {}", String::from_utf8_lossy(task_key));
+    }
 
     Ok(())
 }
