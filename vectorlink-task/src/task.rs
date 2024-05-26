@@ -18,24 +18,24 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 
-use crate::queue::Queue;
+use crate::{key::concat_bytes, queue::Queue};
 
 #[derive(Clone)]
 pub struct Task {
     client: Client,
     task_id: String,
-    task_key: String,
-    claim_key: String,
-    interrupt_key: String,
+    task_key: Vec<u8>,
+    claim_key: Vec<u8>,
+    interrupt_key: Vec<u8>,
     queue_identity: String,
     lease: Option<i64>,
     state: TaskData,
 }
 
-async fn get_task_state(client: &mut Client, task_key: &str) -> Result<TaskData, TaskStateError> {
-    let response = client.get(task_key.as_bytes(), None).await?;
-    let data = response.kvs()[0].value_str().unwrap().to_owned();
-    let deserialized: TaskData = serde_json::from_str(&data)?;
+async fn get_task_state(client: &mut Client, task_key: &[u8]) -> Result<TaskData, TaskStateError> {
+    let response = client.get(task_key, None).await?;
+    let data = response.kvs()[0].value();
+    let deserialized: TaskData = serde_json::from_reader(data)?;
 
     Ok(deserialized)
 }
@@ -93,12 +93,12 @@ impl Task {
         task_id: String,
         lease: Option<i64>,
     ) -> Result<Self, TaskStateError> {
-        let task_key = format!("{}{}", queue.tasks_prefix, task_id);
-        let claim_key = format!("{}{}", queue.claims_prefix, task_id);
-        let interrupt_key = format!("{}{}", queue.interrupt_prefix, task_id);
+        let task_key = concat_bytes(&queue.tasks_prefix, task_id.as_bytes());
+        let claim_key = concat_bytes(&queue.claims_prefix, task_id.as_bytes());
+        let interrupt_key = concat_bytes(&queue.interrupt_prefix, task_id.as_bytes());
         let queue_identity = queue.identity.clone();
         let mut client = queue.client.clone();
-        let state = get_task_state(&mut client, &task_key).await?;
+        let state = get_task_state(&mut client, &task_key[..]).await?;
         Ok(Self {
             client: queue.client.clone(),
             task_id,
@@ -117,7 +117,7 @@ impl Task {
         }
         send_keep_alive(&mut self.client, self.lease.unwrap()).await?;
 
-        let interrupt = self.client.get(self.interrupt_key.as_bytes(), None).await?;
+        let interrupt = self.client.get(&self.interrupt_key[..], None).await?;
         if let Some(first) = interrupt.kvs().first() {
             let next_status = match first.key() {
                 b"canceled" => TaskStatus::Canceled,
@@ -125,7 +125,7 @@ impl Task {
                 _ => panic!("unknown interrupt reason"),
             };
 
-            let delete_interrupt = vec![TxnOp::delete(self.interrupt_key.as_bytes(), None)];
+            let delete_interrupt = vec![TxnOp::delete(&self.interrupt_key[..], None)];
             self.state.status = next_status;
             self.update_state_noalive(delete_interrupt).await?;
         }
@@ -146,7 +146,7 @@ impl Task {
             // It is allowed to look at tasks without claiming them.
             self.alive().await?;
         }
-        let response = self.client.get(self.task_key.as_bytes(), None).await?;
+        let response = self.client.get(&self.task_key[..], None).await?;
         let data = response.kvs()[0].value_str().unwrap().to_owned();
         let deserialized: TaskData = serde_json::from_str(&data)?;
         self.state = deserialized;
@@ -161,11 +161,11 @@ impl Task {
         let data = serde_json::to_string_pretty(&self.state)?;
         let mut success_ops = vec![
             TxnOp::put(
-                self.claim_key.as_bytes(),
+                &self.claim_key[..],
                 self.queue_identity.as_bytes(),
                 Some(PutOptions::new().with_lease(self.lease.unwrap())),
             ),
-            TxnOp::put(self.task_key.as_bytes(), data, None),
+            TxnOp::put(&self.task_key[..], data, None),
         ];
 
         success_ops.extend(extra_success_ops);
@@ -304,9 +304,9 @@ pub enum TaskStatus {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TaskData {
-    status: TaskStatus,
+    pub status: TaskStatus,
     #[serde(flatten)]
-    other_fields: BTreeMap<String, serde_json::Value>,
+    pub other_fields: BTreeMap<String, serde_json::Value>,
 }
 
 pub enum InterruptReason {
