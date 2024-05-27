@@ -9,10 +9,7 @@ use vectorlink_task::{
 
 use crate::task::try_enqueue_task;
 
-pub async fn process_new_orphans(
-    client: &mut Client,
-    revision: i64,
-) -> Result<(), etcd_client::Error> {
+pub async fn process_orphans(client: &mut Client, revision: i64) -> Result<(), etcd_client::Error> {
     eprintln!("start watching for orphaned tasks");
     let (_watcher, mut watch_stream) = client
         .watch(

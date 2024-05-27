@@ -9,7 +9,7 @@ use vectorlink_task::{
     task::{TaskData, TaskStatus},
 };
 
-pub async fn process_new_tasks(
+pub async fn process_task_updates(
     client: &mut Client,
     revision: i64,
 ) -> Result<(), etcd_client::Error> {
