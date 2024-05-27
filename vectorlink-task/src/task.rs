@@ -18,7 +18,10 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 
-use crate::{key::concat_bytes, queue::Queue};
+use crate::{
+    key::{concat_bytes, task_key},
+    queue::Queue,
+};
 
 #[derive(Clone)]
 pub struct Task {
@@ -288,6 +291,49 @@ impl Task {
 
         Ok(())
     }
+
+    pub async fn spawn_child<T: Serialize>(
+        &mut self,
+        queue: &str,
+        task_id: &str,
+        init: &T,
+    ) -> Result<(), TaskStateError> {
+        let full_self_id = format!("{}/{}", self.queue_identity, self.task_id);
+        let task_key = task_key(format!("{queue}/{task_id}").as_bytes());
+
+        let mut version = 0;
+        // best to start with checking if a child is spawnable at all
+        let result = self.client.get(task_key, None).await?;
+        if !result.kvs().is_empty() {
+            // the key is there but we might still be able to do this!
+            // allow task creation if the task is pending or final.
+            // deny if task is currently running, resuming, waiting or paused.
+            //
+            // If the task is unparsable, that is considered
+            // equivalent to an error state, and therefore overwriting
+            // it is fine.
+            version = result.kvs()[0].version();
+
+            if let Ok(task_data) = serde_json::from_reader::<_, TaskData>(result.kvs()[0].value()) {
+                if !task_data.status.is_final() {
+                    return Err(TaskStateError::TaskAlreadyRunning);
+                }
+            }
+        }
+
+        // since we got here, it should be fine to overwrite. as long as the version is the same.
+
+        let task_data = TaskData {
+            status: TaskStatus::Pending,
+            parent: Some(full_self_id),
+            children: None,
+            other_fields: BTreeMap::new(),
+        };
+
+        // make extra success ops be about creating the tasks
+        // self.update_state(extra_success_ops);
+        todo!();
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -304,7 +350,7 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
-    pub fn is_final_state(&self) -> bool {
+    pub fn is_final(&self) -> bool {
         matches!(
             self,
             TaskStatus::Complete | TaskStatus::Error | TaskStatus::Canceled
@@ -346,6 +392,8 @@ pub enum TaskStateError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Alive(#[from] TaskAliveError),
+    #[error("tried to create a task that is already running")]
+    TaskAlreadyRunning,
 }
 
 #[async_trait]

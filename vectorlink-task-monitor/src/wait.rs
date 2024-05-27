@@ -77,7 +77,7 @@ pub async fn try_resume_waiting(
                 let wait_kv = &r.kvs()[0];
                 // we now have a task to check. if it is in a complete state, we can resume.
                 if let Ok(wait_data) = serde_json::from_reader::<_, TaskData>(wait_kv.value()) {
-                    if wait_data.status.is_final_state() {
+                    if wait_data.status.is_final() {
                         // this task is completed! wake up time
                         wake_up_waiting_task(client, task, task_data).await?;
                         // no need to wake this up twice, so let's bail.
