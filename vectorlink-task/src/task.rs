@@ -296,15 +296,29 @@ pub enum TaskStatus {
     Pending,
     Resuming,
     Running,
+    Waiting,
     Paused,
     Complete,
     Error,
     Canceled,
 }
 
+impl TaskStatus {
+    pub fn is_final_state(&self) -> bool {
+        matches!(
+            self,
+            TaskStatus::Complete | TaskStatus::Error | TaskStatus::Canceled
+        )
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TaskData {
     pub status: TaskStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub waiting: Option<Vec<String>>,
     #[serde(flatten)]
     pub other_fields: BTreeMap<String, serde_json::Value>,
 }

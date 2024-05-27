@@ -1,4 +1,7 @@
-use crate::orphan::resume_unclaimed;
+use crate::{
+    orphan::resume_if_unclaimed,
+    wait::{try_resume_waiting, wake_up_parent},
+};
 use etcd_client::{
     Client, Compare, CompareOp, KeyValue, Txn, TxnOp, WatchFilterType, WatchOptions,
 };
@@ -60,7 +63,15 @@ pub async fn try_enqueue_task(
                 }
                 TaskStatus::Running => {
                     // resume if no claim
-                    resume_unclaimed(client, kv, parsed).await?;
+                    resume_if_unclaimed(client, kv, parsed).await?;
+                }
+                TaskStatus::Complete | TaskStatus::Error => {
+                    // resume parent, if it is waiting for us
+                    wake_up_parent(client, &kv, parsed).await?;
+                }
+                TaskStatus::Waiting => {
+                    // see if we can resume
+                    try_resume_waiting(client, &kv, parsed).await?;
                 }
                 _ => {
                     // nothing to do for this task

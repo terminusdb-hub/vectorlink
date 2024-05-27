@@ -3,6 +3,7 @@ pub static TASKS_PREFIX: &[u8] = b"/services/tasks/";
 /// the first possible key after all tasks that is not a task
 pub static QUEUE_PREFIX: &[u8] = b"/services/queue/";
 pub static INTERRUPT_PREFIX: &[u8] = b"/services/interrupt/";
+pub static WAIT_PREFIX: &[u8] = b"/services/waits/";
 
 pub fn claim_key_task_id(claim_key: &[u8]) -> &[u8] {
     &claim_key[CLAIMS_PREFIX.len()..]
@@ -15,6 +16,10 @@ pub fn queue_key_task_id(queue_key: &[u8]) -> &[u8] {
 }
 pub fn interrupt_key_task_id(interrupt_key: &[u8]) -> &[u8] {
     &interrupt_key[INTERRUPT_PREFIX.len()..]
+}
+
+pub fn wait_key_task_id(wait_key: &[u8]) -> &[u8] {
+    &wait_key[WAIT_PREFIX.len()..]
 }
 
 pub fn concat_bytes(b1: &[u8], b2: &[u8]) -> Vec<u8> {
@@ -39,6 +44,10 @@ pub fn queue_key(task_id: &[u8]) -> Vec<u8> {
 
 pub fn interrupt_key(task_id: &[u8]) -> Vec<u8> {
     concat_bytes(INTERRUPT_PREFIX, task_id)
+}
+
+pub fn wait_key(task_id: &[u8]) -> Vec<u8> {
+    concat_bytes(WAIT_PREFIX, task_id)
 }
 
 /// calculates the first key that would not be part of a prefix

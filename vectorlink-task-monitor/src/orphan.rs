@@ -59,7 +59,7 @@ pub async fn process_orphans(client: &mut Client, revision: i64) -> Result<(), e
     Ok(())
 }
 
-pub async fn resume_unclaimed(
+pub async fn resume_if_unclaimed(
     client: &mut Client,
     kv: &KeyValue,
     mut task_data: TaskData,

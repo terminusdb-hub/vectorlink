@@ -1,6 +1,7 @@
 use crate::task::try_enqueue_task;
 use etcd_client::{Client, GetOptions};
 use vectorlink_task::key::{get_increment_key, key_after_prefix, TASKS_PREFIX};
+
 /// Scan the existing store for any tasks that are ready to be queued, but aren't yet queued.
 ///
 /// Returns the processed revision.

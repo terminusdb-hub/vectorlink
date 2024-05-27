@@ -1,6 +1,7 @@
 mod init;
 mod orphan;
 mod task;
+mod wait;
 
 use std::error::Error;
 
