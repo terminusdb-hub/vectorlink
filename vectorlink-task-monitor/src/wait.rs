@@ -25,7 +25,7 @@ pub async fn wake_up_parent(
             Ok(parent_task) => {
                 if parent_task.status == TaskStatus::Waiting
                     && parent_task
-                        .waiting
+                        .children
                         .iter()
                         .flatten()
                         .any(|waiting_for| waiting_for.as_bytes() == task_id)
@@ -54,7 +54,7 @@ pub async fn try_resume_waiting(
         return Ok(());
     }
 
-    if let Some(waiting) = task_data.waiting.as_ref() {
+    if let Some(waiting) = task_data.children.as_ref() {
         // retrieve all tasks
         let ops: Vec<_> = waiting
             .iter()

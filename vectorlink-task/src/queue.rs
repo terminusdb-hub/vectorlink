@@ -76,31 +76,59 @@ impl Queue {
     }
 
     pub async fn next_task(&mut self) -> Result<Task, TaskStateError> {
+        let mut start_key = self.queue_prefix.to_vec();
+        let end_key = key_after_prefix(&self.queue_prefix);
+        let mut revision = 0;
+        loop {
+            let result = self
+                .client
+                .get(
+                    &start_key[..],
+                    Some(
+                        GetOptions::new()
+                            .with_range(&end_key[..])
+                            .with_sort(
+                                etcd_client::SortTarget::Create,
+                                etcd_client::SortOrder::Ascend,
+                            )
+                            .with_limit(100),
+                    ),
+                )
+                .await?;
+
+            if revision == 0 {
+                revision = result.header().expect("no header").revision();
+            }
+
+            for kv in result.kvs() {
+                let task_id = self.queue_key_to_task_id(kv.key_str().unwrap());
+                if let Some(task) = self.claim_task(task_id).await? {
+                    return Ok(task);
+                }
+            }
+
+            if !result.more() {
+                break;
+            }
+
+            // we need to look at more results. set start key appropriately
+            start_key = get_increment_key(result.kvs().last().expect("kvs empty??").key());
+        }
+
+        // after having processed all keys, we still didn't find a
+        // potential task. Let's just wait for one to pop up.
         let (mut watcher, mut watch_stream) = self
             .client
             .watch(
                 &self.queue_prefix[..],
-                Some(WatchOptions::new().with_prefix()),
+                Some(
+                    WatchOptions::new()
+                        .with_prefix()
+                        .with_fragment()
+                        .with_start_revision(revision),
+                ),
             )
             .await?;
-        let result = self
-            .client
-            .get(
-                &self.queue_prefix[..],
-                Some(GetOptions::new().with_prefix().with_sort(
-                    etcd_client::SortTarget::Create,
-                    etcd_client::SortOrder::Ascend,
-                )),
-            )
-            .await?;
-
-        for kv in result.kvs() {
-            let task_id = self.queue_key_to_task_id(kv.key_str().unwrap());
-            if let Some(task) = self.claim_task(task_id).await? {
-                watcher.cancel().await?;
-                return Ok(task);
-            }
-        }
 
         while let Some(e) = watch_stream.try_next().await? {
             for event in e.events() {

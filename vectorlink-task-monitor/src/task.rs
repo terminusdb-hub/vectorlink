@@ -65,13 +65,14 @@ pub async fn try_enqueue_task(
                     // resume if no claim
                     resume_if_unclaimed(client, kv, parsed).await?;
                 }
-                TaskStatus::Complete | TaskStatus::Error => {
+                TaskStatus::Complete | TaskStatus::Error | TaskStatus::Canceled => {
                     // resume parent, if it is waiting for us
-                    wake_up_parent(client, &kv, parsed).await?;
+                    wake_up_parent(client, kv, parsed).await?;
+                    // TODO we also have to cancel any remaining children
                 }
                 TaskStatus::Waiting => {
                     // see if we can resume
-                    try_resume_waiting(client, &kv, parsed).await?;
+                    try_resume_waiting(client, kv, parsed).await?;
                 }
                 _ => {
                     // nothing to do for this task

@@ -318,7 +318,7 @@ pub struct TaskData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub waiting: Option<Vec<String>>,
+    pub children: Option<Vec<String>>,
     #[serde(flatten)]
     pub other_fields: BTreeMap<String, serde_json::Value>,
 }
