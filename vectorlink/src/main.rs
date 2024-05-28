@@ -846,10 +846,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 fs::metadata(&source_vector_file).unwrap().size() as usize;
             let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
             let vector_count = source_vector_file_size / vector_byte_size;
+            eprintln!("total number of vectors: {vector_count}");
             assert_eq!(0, source_vector_file_size % vector_byte_size);
 
             let single_selection_size =
                 (single_selection_proportion * vector_count as f32).ceil() as usize;
+
+            eprintln!(
+                "producing {selection_count} vector parts with {single_selection_size} vecs each"
+            );
 
             let target_path: PathBuf = target_vector_dir.into();
             fs::create_dir_all(&target_path).unwrap();
