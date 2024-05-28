@@ -12,7 +12,7 @@ use vectorlink_store::{
     range::LoadedSizedVectorRange,
 };
 
-use crate::vecmath::EMBEDDING_BYTE_LENGTH;
+use crate::vecmath::EMBEDDING_BYTE_LENGTH_1024;
 
 pub struct Domain {
     name: String,
@@ -33,7 +33,11 @@ impl Domain {
         let encoded_name = encode(name);
         path.push(format!("{encoded_name}.vecs"));
         // TODO: this place should read the embedding length from a configuration file
-        let file = RwLock::new(VectorFile::open_create(&path, EMBEDDING_BYTE_LENGTH, true)?);
+        let file = RwLock::new(VectorFile::open_create(
+            &path,
+            EMBEDDING_BYTE_LENGTH_1024,
+            true,
+        )?);
 
         Ok(Domain {
             name: name.to_string(),

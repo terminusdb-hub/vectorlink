@@ -23,8 +23,9 @@ use urlencoding::encode;
 
 use crate::{
     comparator::{
-        Centroid16Comparator, Centroid8Comparator, DiskOpenAIComparator, OpenAIComparator,
-        Quantized16Comparator, Quantized8Comparator,
+        Centroid16Comparator, Centroid16Comparator1024, Centroid8Comparator, Disk1024Comparator,
+        DiskOpenAIComparator, OpenAIComparator, Quantized16Comparator, Quantized16Comparator1024,
+        Quantized8Comparator,
     },
     configuration::HnswConfiguration,
     domain::Domain,
@@ -32,8 +33,9 @@ use crate::{
     openai::{embeddings_for, EmbeddingError, Model},
     server::Operation,
     vecmath::{
-        Embedding, CENTROID_16_LENGTH, CENTROID_8_LENGTH, EMBEDDING_LENGTH,
-        QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_8_EMBEDDING_LENGTH,
+        Embedding, CENTROID_16_LENGTH, CENTROID_8_LENGTH, EMBEDDING_LENGTH, EMBEDDING_LENGTH_1024,
+        QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH_1024,
+        QUANTIZED_8_EMBEDDING_LENGTH,
     },
     vectors::VectorStore,
 };
@@ -279,9 +281,10 @@ fn perform_indexing(
     final_file: PathBuf,
     progress: &mut dyn ProgressMonitor,
 ) -> Result<(), IndexingError> {
-    let comparator = OpenAIComparator::new(
+    // NOTE: This also needs to know the type!
+    let comparator = Disk1024Comparator::new(
         domain_obj.name().to_string(),
-        Arc::new(domain_obj.all_vecs()?),
+        Arc::new(domain_obj.file().as_immutable().into_sized()),
     );
     let vecs: Vec<_> = (offset as usize..(offset as usize + count))
         .map(VectorId)
@@ -289,26 +292,32 @@ fn perform_indexing(
 
     progress.alive().unwrap();
     eprintln!("ready to generate hnsw");
+    // NOTE: This should be a switch over the configurations
+    // defined in HnswConfiguration
     let hnsw = if quantize_hnsw {
         let number_of_centroids = 65_535;
-        let c = DiskOpenAIComparator::new(
+        let c = Disk1024Comparator::new(
             domain_obj.name().to_owned(),
             Arc::new(domain_obj.immutable_file().into_sized()),
         );
         let pq_build_parameters = PqBuildParameters::default();
         let quantized_hnsw: QuantizedHnsw<
-            EMBEDDING_LENGTH,
-            CENTROID_8_LENGTH,
-            QUANTIZED_8_EMBEDDING_LENGTH,
-            Centroid8Comparator,
-            Quantized8Comparator,
-            DiskOpenAIComparator,
+            EMBEDDING_LENGTH_1024,
+            CENTROID_16_LENGTH,
+            QUANTIZED_16_EMBEDDING_LENGTH_1024,
+            Centroid16Comparator1024,
+            Quantized16Comparator1024,
+            Disk1024Comparator,
         > = QuantizedHnsw::new(number_of_centroids, c, pq_build_parameters, progress);
-        HnswConfiguration::SmallQuantizedOpenAi8(model, quantized_hnsw)
+        HnswConfiguration::Quantized1024By16(model, quantized_hnsw)
     } else {
+        // Currently not implemented
+        todo!("We currently don't have a configuraton for 1024 unquantized")
+        /*
         let build_parameters = BuildParameters::default();
         let hnsw = Hnsw::generate(comparator, vecs, build_parameters, progress);
-        HnswConfiguration::UnquantizedOpenAi(model, hnsw)
+            HnswConfiguration::Unquantized1024(model, hnsw)
+        */
     };
     eprintln!("done generating hnsw");
     hnsw.serialize(&staging_file)?;
@@ -340,6 +349,7 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
     vector_path.push("vectors");
     let mut vec_file = OpenOptions::new()
         .create(true)
+        .truncate(true)
         .write(true)
         .open(&vector_path)
         .await?;
@@ -357,6 +367,7 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
     let mut extended_file = OpenOptions::new()
         .read(true)
         .write(true)
+        .truncate(true)
         .create(true)
         .open(extended_path)
         .await?;
@@ -391,7 +402,7 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
 }
 
 pub fn index_domain<P: AsRef<Path>>(
-    api_key: &str,
+    _api_key: &str,
     model: Model,
     vectorlink_path: P,
     domain: &str,
@@ -406,7 +417,7 @@ pub fn index_domain<P: AsRef<Path>>(
     std::fs::create_dir_all(&staging_path)?;
 
     let vs_path_buf: PathBuf = vectorlink_path.as_ref().into();
-    let vs: VectorStore = VectorStore::new(&vs_path_buf, size);
+    let vs: VectorStore = VectorStore::new(vs_path_buf, size);
     let domain_obj = vs.get_domain(domain)?;
 
     let index_name = create_index_name(domain, commit);
