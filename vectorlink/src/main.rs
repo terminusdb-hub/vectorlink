@@ -2,10 +2,12 @@
 #![feature(trait_upcasting)]
 
 use std::fs;
+use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
 use std::os::unix::fs::FileExt;
 use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -868,20 +870,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 indexes.truncate(single_selection_size);
 
                 // resort so we can do log searches
-                indexes.sort();
+                indexes.par_sort_unstable();
 
                 let buf = unsafe {
                     std::slice::from_raw_parts(
                         indexes.as_ptr() as *mut u8,
-                        vector_size * std::mem::size_of::<f32>(),
+                        indexes.len() * std::mem::size_of::<usize>(),
                     )
                 };
 
                 fs::write(target_path.join(format!("{i}.map")), buf).unwrap();
 
-                let input_vec_file = File::open(&source_vector_file).unwrap();
-                let mut output_vec_file =
-                    File::create(target_path.join(format!("{i}.vecs"))).unwrap();
+                let mut input_vec_options = OpenOptions::new();
+                input_vec_options
+                    .custom_flags(libc::O_DIRECT)
+                    .read(true)
+                    .create(false)
+                    .truncate(false);
+                let input_vec_file = input_vec_options.open(&source_vector_file).unwrap();
+                let mut output_vec_options = OpenOptions::new();
+                output_vec_options
+                    .custom_flags(libc::O_DIRECT)
+                    .write(true)
+                    .create(true)
+                    .truncate(true);
+                let mut output_vec_file = output_vec_options.open(format!("{i}.vecs")).unwrap();
 
                 let mut buf = vec![0_u8; vector_byte_size];
                 for i in indexes {
