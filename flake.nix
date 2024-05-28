@@ -38,6 +38,7 @@
         in
         {
           vectorlink = pkgs.callPackage ./vectorlink {};
+          vectorlink-task-monitor-rs = pkgs.callPackage ./vectorlink-task-monitor {};
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
           line-index = pkgs.callPackage ./line-index {};
           vectorlink-task-monitor = unstablepkgs.callPackage python/vectorlink-task {
@@ -65,6 +66,10 @@
           task-monitor = {
             type = "app";
             program = "${p.vectorlink-task-monitor}/bin/task-monitor";
+          };
+          task-monitor-rs = {
+            type = "app";
+            program = "${p.vectorlink-task-monitor-rs}/bin/vectorlink-task-monitor";
           };
           vectorize-server = {
             type = "app";

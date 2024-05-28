@@ -3107,6 +3107,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "vectorlink-task-monitor"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "etcd-client",
+ "futures",
+ "serde_json",
+ "tokio",
+ "vectorlink-task",
+]
+
+[[package]]
 name = "vectorlink-worker"
 version = "0.1.0"
 dependencies = [

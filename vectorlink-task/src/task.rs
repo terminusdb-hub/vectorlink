@@ -18,24 +18,27 @@ use tokio::{
 };
 use tokio_stream::StreamExt;
 
-use crate::queue::Queue;
+use crate::{
+    key::{concat_bytes, task_key},
+    queue::Queue,
+};
 
 #[derive(Clone)]
 pub struct Task {
     client: Client,
     task_id: String,
-    task_key: String,
-    claim_key: String,
-    interrupt_key: String,
+    task_key: Vec<u8>,
+    claim_key: Vec<u8>,
+    interrupt_key: Vec<u8>,
     queue_identity: String,
     lease: Option<i64>,
     state: TaskData,
 }
 
-async fn get_task_state(client: &mut Client, task_key: &str) -> Result<TaskData, TaskStateError> {
-    let response = client.get(task_key.as_bytes(), None).await?;
-    let data = response.kvs()[0].value_str().unwrap().to_owned();
-    let deserialized: TaskData = serde_json::from_str(&data)?;
+async fn get_task_state(client: &mut Client, task_key: &[u8]) -> Result<TaskData, TaskStateError> {
+    let response = client.get(task_key, None).await?;
+    let data = response.kvs()[0].value();
+    let deserialized: TaskData = serde_json::from_reader(data)?;
 
     Ok(deserialized)
 }
@@ -93,12 +96,12 @@ impl Task {
         task_id: String,
         lease: Option<i64>,
     ) -> Result<Self, TaskStateError> {
-        let task_key = format!("{}{}", queue.tasks_prefix, task_id);
-        let claim_key = format!("{}{}", queue.claims_prefix, task_id);
-        let interrupt_key = format!("{}{}", queue.interrupt_prefix, task_id);
+        let task_key = concat_bytes(&queue.tasks_prefix, task_id.as_bytes());
+        let claim_key = concat_bytes(&queue.claims_prefix, task_id.as_bytes());
+        let interrupt_key = concat_bytes(&queue.interrupt_prefix, task_id.as_bytes());
         let queue_identity = queue.identity.clone();
         let mut client = queue.client.clone();
-        let state = get_task_state(&mut client, &task_key).await?;
+        let state = get_task_state(&mut client, &task_key[..]).await?;
         Ok(Self {
             client: queue.client.clone(),
             task_id,
@@ -117,7 +120,7 @@ impl Task {
         }
         send_keep_alive(&mut self.client, self.lease.unwrap()).await?;
 
-        let interrupt = self.client.get(self.interrupt_key.as_bytes(), None).await?;
+        let interrupt = self.client.get(&self.interrupt_key[..], None).await?;
         if let Some(first) = interrupt.kvs().first() {
             let next_status = match first.key() {
                 b"canceled" => TaskStatus::Canceled,
@@ -125,7 +128,7 @@ impl Task {
                 _ => panic!("unknown interrupt reason"),
             };
 
-            let delete_interrupt = vec![TxnOp::delete(self.interrupt_key.as_bytes(), None)];
+            let delete_interrupt = vec![TxnOp::delete(&self.interrupt_key[..], None)];
             self.state.status = next_status;
             self.update_state_noalive(delete_interrupt).await?;
         }
@@ -146,7 +149,7 @@ impl Task {
             // It is allowed to look at tasks without claiming them.
             self.alive().await?;
         }
-        let response = self.client.get(self.task_key.as_bytes(), None).await?;
+        let response = self.client.get(&self.task_key[..], None).await?;
         let data = response.kvs()[0].value_str().unwrap().to_owned();
         let deserialized: TaskData = serde_json::from_str(&data)?;
         self.state = deserialized;
@@ -161,11 +164,11 @@ impl Task {
         let data = serde_json::to_string_pretty(&self.state)?;
         let mut success_ops = vec![
             TxnOp::put(
-                self.claim_key.as_bytes(),
+                &self.claim_key[..],
                 self.queue_identity.as_bytes(),
                 Some(PutOptions::new().with_lease(self.lease.unwrap())),
             ),
-            TxnOp::put(self.task_key.as_bytes(), data, None),
+            TxnOp::put(&self.task_key[..], data, None),
         ];
 
         success_ops.extend(extra_success_ops);
@@ -288,6 +291,49 @@ impl Task {
 
         Ok(())
     }
+
+    pub async fn spawn_child<T: Serialize>(
+        &mut self,
+        queue: &str,
+        task_id: &str,
+        init: &T,
+    ) -> Result<(), TaskStateError> {
+        let full_self_id = format!("{}/{}", self.queue_identity, self.task_id);
+        let task_key = task_key(format!("{queue}/{task_id}").as_bytes());
+
+        let mut version = 0;
+        // best to start with checking if a child is spawnable at all
+        let result = self.client.get(task_key, None).await?;
+        if !result.kvs().is_empty() {
+            // the key is there but we might still be able to do this!
+            // allow task creation if the task is pending or final.
+            // deny if task is currently running, resuming, waiting or paused.
+            //
+            // If the task is unparsable, that is considered
+            // equivalent to an error state, and therefore overwriting
+            // it is fine.
+            version = result.kvs()[0].version();
+
+            if let Ok(task_data) = serde_json::from_reader::<_, TaskData>(result.kvs()[0].value()) {
+                if !task_data.status.is_final() {
+                    return Err(TaskStateError::TaskAlreadyRunning);
+                }
+            }
+        }
+
+        // since we got here, it should be fine to overwrite. as long as the version is the same.
+
+        let task_data = TaskData {
+            status: TaskStatus::Pending,
+            parent: Some(full_self_id),
+            children: None,
+            other_fields: BTreeMap::new(),
+        };
+
+        // make extra success ops be about creating the tasks
+        // self.update_state(extra_success_ops);
+        todo!();
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -296,17 +342,31 @@ pub enum TaskStatus {
     Pending,
     Resuming,
     Running,
+    Waiting,
     Paused,
     Complete,
     Error,
     Canceled,
 }
 
+impl TaskStatus {
+    pub fn is_final(&self) -> bool {
+        matches!(
+            self,
+            TaskStatus::Complete | TaskStatus::Error | TaskStatus::Canceled
+        )
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TaskData {
-    status: TaskStatus,
+    pub status: TaskStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<String>>,
     #[serde(flatten)]
-    other_fields: BTreeMap<String, serde_json::Value>,
+    pub other_fields: BTreeMap<String, serde_json::Value>,
 }
 
 pub enum InterruptReason {
@@ -332,6 +392,8 @@ pub enum TaskStateError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Alive(#[from] TaskAliveError),
+    #[error("tried to create a task that is already running")]
+    TaskAlreadyRunning,
 }
 
 #[async_trait]
