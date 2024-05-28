@@ -897,6 +897,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 let mut output_vec_file = output_vec_options
                     .open(target_path.join(format!("{i}.vecs")))
                     .unwrap();
+                output_vec_file
+                    .set_len((single_selection_size * vector_byte_size) as u64)
+                    .unwrap();
 
                 indexes.into_par_iter().for_each(|i| {
                     let mut buf = vec![0_u8; vector_byte_size];
