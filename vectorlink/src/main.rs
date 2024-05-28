@@ -896,15 +896,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     .truncate(true);
                 let mut output_vec_file = output_vec_options.open(format!("{i}.vecs")).unwrap();
 
-                let mut buf = vec![0_u8; vector_byte_size];
-                for i in indexes {
+                indexes.into_par_iter().for_each(|i| {
+                    let mut buf = vec![0_u8; vector_byte_size];
                     let offset = i * vector_byte_size;
                     input_vec_file
                         .read_exact_at(&mut buf, offset as u64)
                         .unwrap();
 
-                    output_vec_file.write_all(&buf).unwrap();
-                }
+                    output_vec_file
+                        .write_all_at(&buf, (i * vector_byte_size) as u64)
+                        .unwrap();
+                });
 
                 output_vec_file.flush().unwrap();
             }
