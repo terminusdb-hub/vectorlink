@@ -8,7 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 numpy = "^1.26.4"
-torch = "^2.2.2"
+torch = "~2.1.0"
 transformers = "^4.40.0"
 accelerate = "^0.30.0"
 sentence-transformers = "^2.7.0"
@@ -17,6 +17,12 @@ vectorlink_task = { path = "../vectorlink-task", develop = false }
 boto3 = "^1.34"
 pybars3 = "^0.9.7"
 
+torch_neuronx = {version = "^2.1.2.2.1.0", optional = true}
+
+[[tool.poetry.source]]
+name = "neuron"
+url = "https://pip.repos.neuron.amazonaws.com"
+priority = "supplemental"
 
 [build-system]
 requires = ["poetry-core"]
@@ -25,3 +31,6 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 backend = "vectorlink_vectorize.backend:main"
 vectorize-server = "vectorlink_vectorize.vectorize_etcd:main"
+
+[tool.poetry.extras]
+neuronx = ["torch_neuronx"]
