@@ -4,6 +4,7 @@ import json
 
 from vectorlink_vectorize.backends.bloom import BloomBackend
 from vectorlink_vectorize.backends.mxbai import MxbaiBackend
+from vectorlink_vectorize.backends.neuron_mxbai import NeuronMxbaiBackend
 
 def init_backend(name):
     match name:
@@ -11,6 +12,8 @@ def init_backend(name):
             return BloomBackend()
         case "mxbai":
             return MxbaiBackend()
+        case "mxbai_neuron":
+            return NeuronMxbaiBackend()
         case _:
             raise Exception(f'unknown backend {args.backend}')
 
