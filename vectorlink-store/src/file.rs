@@ -140,6 +140,8 @@ impl VectorFile {
         let num_vecs_to_write = file.num_vecs;
         let mut num_bytes_to_write = num_vecs_to_write * self.vector_byte_size;
 
+        // TODO this is a ridiculously small buffer size for a sequential scan.
+        // Use at least 1MB to reduce iops and maximize throughput.
         let mut buf = vec![0_u8; 4096];
         while num_bytes_to_write != 0 {
             let n = file.file.read_at(&mut buf, read_offset)?;
