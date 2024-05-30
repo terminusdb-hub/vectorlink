@@ -4,7 +4,9 @@ members = [ "line-index",
 "parallel-hnsw",
 "vectorlink",
 "vectorlink-store",
-"vectorlink-task", "vectorlink-task-monitor",
+"vectorlink-task",
+"vectorlink-task-py",
+"vectorlink-task-monitor",
 "vectorlink-worker"]
 
 [profile.release]
