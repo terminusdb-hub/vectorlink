@@ -13,7 +13,7 @@ transformers = "^4.40.0"
 accelerate = "^0.30.0"
 sentence-transformers = "^2.7.0"
 
-vectorlink_task = { path = "../vectorlink-task", develop = false }
+vectorlink_task = { path = "../../vectorlink-task-py", develop = false }
 boto3 = "^1.34"
 pybars3 = "^0.9.7"
 

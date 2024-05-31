@@ -38,14 +38,10 @@
         in
         {
           vectorlink = pkgs.callPackage ./vectorlink {};
-          vectorlink-task-monitor-rs = pkgs.callPackage ./vectorlink-task-monitor {};
+          vectorlink-task-monitor = pkgs.callPackage ./vectorlink-task-monitor {};
+          vectorlink-task-py = pkgs.callPackage ./vectorlink-task-py {};
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
           line-index = pkgs.callPackage ./line-index {};
-          vectorlink-task-monitor = unstablepkgs.callPackage python/vectorlink-task {
-            config = { allowUnfree = true;
-                       cudaSupport = true;
-                     };
-          };
           vectorlink-vectorize = unstablepkgs.callPackage python/vectorlink-vectorize {};
           create-vectorize-tasks = unstablepkgs.callPackage python/create-vectorize-task {};
           read-line-from-index = unstablepkgs.callPackage python/read-line-from-index {};

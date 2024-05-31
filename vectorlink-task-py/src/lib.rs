@@ -10,20 +10,26 @@ struct PyQueue(Queue);
 #[pyclass(name = "Task", module = "vectorlink_task")]
 struct PyTask(Task);
 
-fn json_as_py<'p>(py: Python<'p>, data: Option<Value>) -> PyResult<&'p PyAny> {
+fn json_as_py(py: Python, data: Option<Value>) -> PyResult<&PyAny> {
+    eprintln!("json as py time");
     if data.is_none() {
         let none = PyNone::get(py).extract()?;
         return Ok(none);
     }
 
     let init_data = data.unwrap();
+    eprintln!("got the data");
 
     let init_data = serde_json::to_string(&init_data).unwrap();
+    eprintln!("now it is a string");
     // now turn it into a python dict
     let json = PyModule::import(py, "json")?;
     let loads = json.getattr("loads")?;
+    eprintln!("going to call load!");
 
-    loads.call1((init_data,))?.extract()
+    let result = loads.call1((init_data,))?.extract()?;
+    eprintln!("done!");
+    Ok(result)
 }
 
 #[pymethods]
@@ -79,7 +85,9 @@ impl PyTask {
             .init()
             .map_err(|e| PyException::new_err(format!("could not retrieve init data: {e}")))?;
 
-        json_as_py(py, init_data)
+        let init_data = json_as_py(py, init_data)?;
+        eprintln!("converted!");
+        Ok(init_data)
     }
 
     #[getter]
@@ -126,7 +134,7 @@ impl PyTask {
         json_as_py(py, error_data)
     }
 
-    fn keepalive(&mut self) -> PyResult<()> {
+    fn alive(&mut self) -> PyResult<()> {
         let runtime = pyo3_asyncio::tokio::get_runtime();
         runtime
             .block_on(self.0.alive())
