@@ -12,11 +12,11 @@ let rustFlagsFor = {
     };
 in
 path:
-{nixpkgs, rust-overlay, crane, ...}:
+{nixpkgs-unstable, rust-overlay, crane, ...}:
 system:
-import nixpkgs {
+import nixpkgs-unstable {
   inherit system;
-  #config = { allowUnfree = true; cudaSupport = true; };
+  config = { allowUnfree = true; cudaSupport = true; cudaVersion = "12"; };
   overlays = [
     (import rust-overlay)
     (final: prev: rec {

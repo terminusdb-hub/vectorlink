@@ -11,24 +11,19 @@ struct PyQueue(Queue);
 struct PyTask(Task);
 
 fn json_as_py(py: Python, data: Option<Value>) -> PyResult<&PyAny> {
-    eprintln!("json as py time");
     if data.is_none() {
         let none = PyNone::get(py).extract()?;
         return Ok(none);
     }
 
     let init_data = data.unwrap();
-    eprintln!("got the data");
 
     let init_data = serde_json::to_string(&init_data).unwrap();
-    eprintln!("now it is a string");
     // now turn it into a python dict
     let json = PyModule::import(py, "json")?;
     let loads = json.getattr("loads")?;
-    eprintln!("going to call load!");
 
     let result = loads.call1((init_data,))?.extract()?;
-    eprintln!("done!");
     Ok(result)
 }
 
@@ -197,5 +192,6 @@ impl PyTask {
 #[pymodule]
 fn vectorlink_task(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyQueue>()?;
+    m.add_class::<PyTask>()?;
     Ok(())
 }

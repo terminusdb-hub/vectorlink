@@ -27,6 +27,7 @@
       overlays = nixpkgsFor;
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
+            /*
             unstablepkgs = import nixpkgs-unstable {
               inherit system;
               config = {
@@ -35,6 +36,7 @@
                 cudaVersion = "12";
               };
             };
+*/
         in
         {
           vectorlink = pkgs.callPackage ./vectorlink {};
@@ -42,9 +44,9 @@
           vectorlink-task-py = pkgs.callPackage ./vectorlink-task-py {};
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
           line-index = pkgs.callPackage ./line-index {};
-          vectorlink-vectorize = unstablepkgs.callPackage python/vectorlink-vectorize {};
-          create-vectorize-tasks = unstablepkgs.callPackage python/create-vectorize-task {};
-          read-line-from-index = unstablepkgs.callPackage python/read-line-from-index {};
+          vectorlink-vectorize = pkgs.callPackage python/vectorlink-vectorize {};
+          create-vectorize-tasks = pkgs.callPackage python/create-vectorize-task {};
+          read-line-from-index = pkgs.callPackage python/read-line-from-index {};
         }
       );
 
