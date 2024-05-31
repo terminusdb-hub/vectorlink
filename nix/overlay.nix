@@ -25,6 +25,7 @@ import nixpkgs {
         nativeBuildInputs = [
           final.pkg-config
           final.protobuf
+          final.python311
         ];
         buildInputs = [
           final.openssl

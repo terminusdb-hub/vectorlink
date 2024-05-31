@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    fmt::Debug,
     marker::PhantomData,
     sync::{
         atomic::{self, AtomicBool},
@@ -33,6 +34,17 @@ pub struct Task {
     queue_identity: String,
     lease: Option<i64>,
     state: TaskData,
+}
+
+impl Debug for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "<task {} ({:?})>",
+            String::from_utf8_lossy(&self.task_key),
+            self.state.status
+        )
+    }
 }
 
 async fn get_task_state(client: &mut Client, task_key: &[u8]) -> Result<TaskData, TaskStateError> {
@@ -112,6 +124,10 @@ impl Task {
             lease,
             state,
         })
+    }
+
+    pub fn task_id(&self) -> &str {
+        &self.task_id
     }
 
     pub async fn alive(&mut self) -> Result<(), TaskStateError> {
