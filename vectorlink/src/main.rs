@@ -23,6 +23,8 @@ mod vectors;
 mod search_server;
 
 use batch::index_from_operations_file;
+use byteorder::LittleEndian;
+use byteorder::WriteBytesExt;
 use clap::CommandFactory;
 use clap::{Parser, Subcommand, ValueEnum};
 use configuration::HnswConfiguration;
@@ -53,6 +55,12 @@ use {indexer::create_index_name, vecmath::empty_embedding, vectors::VectorStore}
 struct Args {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum SearchOutputFormat {
+    TwoColumn,
+    JSON,
 }
 
 #[derive(Subcommand, Debug)]
@@ -130,7 +138,7 @@ enum Commands {
         s1: String,
         #[arg(long)]
         s2: String,
-        #[arg(short, long, value_enum, default_value_t=DistanceVariant::Default)]
+        #[arg(short, long, value_enum, default_value_t = DistanceVariant::Default)]
         variant: DistanceVariant,
         #[arg(short, long, value_enum, default_value_t = Model::Ada2)]
         model: Model,
@@ -170,6 +178,8 @@ enum Commands {
         size: usize,
         #[arg(short, long, default_value_t = 1.0_f32)]
         threshold: f32,
+        #[arg(short, long, value_enum, default_value_t = SearchOutputFormat::TwoColumn)]
+        output_format: SearchOutputFormat,
     },
     Test {
         #[arg(short, long)]
@@ -493,6 +503,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             take,
             directory,
             threshold,
+            output_format,
         } => {
             let dirpath = Path::new(&directory);
             let hnsw_index_path = dbg!(format!(
@@ -510,18 +521,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 Either::Right(hnsw.threshold_nn(threshold, sp))
             };
             let stdout = std::io::stdout();
-            elts.for_each(|(v, results)| {
-                let mut cluster = Vec::new();
-                for result in results.iter() {
-                    let distance = result.1;
-                    if distance < threshold {
-                        cluster.push((result.0 .0, distance))
-                    }
+            match output_format {
+                SearchOutputFormat::TwoColumn => {
+                    elts.for_each(move |(v, results)| {
+                        let mut cluster = Vec::new();
+                        for result in results.iter() {
+                            let distance = result.1;
+                            if distance < threshold {
+                                cluster.push((result.0 .0, distance));
+                                let mut lock = stdout.lock();
+                                lock.write_u64::<LittleEndian>(v.0 as u64).unwrap();
+                                lock.write_u64::<LittleEndian>(result.0 .0 as u64).unwrap();
+                            }
+                        }
+                    });
                 }
-                let cluster = serde_json::to_string(&cluster).unwrap();
-                let mut lock = stdout.lock();
-                writeln!(lock, "[{}, {}]", v.0, cluster).unwrap();
-            });
+                SearchOutputFormat::JSON => {
+                    elts.for_each(|(v, results)| {
+                        let mut cluster = Vec::new();
+                        for result in results.iter() {
+                            let distance = result.1;
+                            if distance < threshold {
+                                cluster.push((result.0 .0, distance))
+                            }
+                        }
+                        let cluster = serde_json::to_string(&cluster).unwrap();
+                        let mut lock = stdout.lock();
+                        writeln!(lock, "[{}, {}]", v.0, cluster).unwrap();
+                    });
+                }
+            }
+            /*
+
+            */
         }
         Commands::ImproveIndex {
             commit,
