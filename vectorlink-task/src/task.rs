@@ -557,7 +557,7 @@ impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned + Send + 'st
 
         Ok(LivenessGuard {
             canary: canary2,
-            handle,
+            handle: Some(handle),
             expecting_liveness: true,
         })
     }
