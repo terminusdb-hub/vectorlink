@@ -81,10 +81,12 @@ async fn keep_alive_continuously(
     lease: i64,
     canary: Arc<AtomicBool>,
 ) -> Result<(), LeaseExpired> {
+    let mut interval_stream = tokio::time::interval(Duration::from_secs(1));
+    interval_stream.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     while canary.load(atomic::Ordering::Relaxed) {
+        interval_stream.tick().await;
         eprintln!("keeping alive..");
         send_keep_alive(&mut client, lease).await?;
-        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
     Ok(())
@@ -551,10 +553,11 @@ impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned + Send + 'st
 
         send_keep_alive(&mut client, lease).await?;
 
-        tokio::spawn(keep_alive_continuously(client, lease, canary));
+        let handle = tokio::spawn(keep_alive_continuously(client, lease, canary));
 
         Ok(LivenessGuard {
             canary: canary2,
+            handle,
             expecting_liveness: true,
         })
     }
@@ -637,6 +640,7 @@ impl<Init, Progress: Clone + Send + 'static> SyncTaskLiveness<Init, Progress> {
 
         Ok(LivenessGuard {
             canary: canary2,
+            handle: None,
             expecting_liveness: true,
         })
     }
@@ -644,6 +648,7 @@ impl<Init, Progress: Clone + Send + 'static> SyncTaskLiveness<Init, Progress> {
 
 pub struct LivenessGuard {
     canary: Arc<AtomicBool>,
+    handle: Option<JoinHandle<Result<(), LeaseExpired>>>,
     expecting_liveness: bool,
 }
 
