@@ -40,6 +40,7 @@
           vectorlink = pkgs.callPackage ./vectorlink {};
           vectorlink-task-monitor-rs = pkgs.callPackage ./vectorlink-task-monitor {};
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
+          task-util = pkgs.callPackage ./task-util {};
           line-index = pkgs.callPackage ./line-index {};
           vectorlink-task-monitor = unstablepkgs.callPackage python/vectorlink-task {
             config = { allowUnfree = true;
