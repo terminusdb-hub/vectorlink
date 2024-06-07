@@ -5,7 +5,7 @@ use std::{
         atomic::{self, AtomicBool},
         Arc,
     },
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use async_trait::async_trait;
@@ -33,7 +33,10 @@ pub struct Task {
     queue_identity: String,
     lease: Option<i64>,
     state: TaskData,
+    last_renew: SystemTime,
 }
+
+const RENEW_DURATION: Duration = Duration::from_secs(1);
 
 async fn get_task_state(client: &mut Client, task_key: &[u8]) -> Result<TaskData, TaskStateError> {
     let response = client.get(task_key, None).await?;
@@ -113,6 +116,7 @@ impl Task {
             queue_identity,
             lease,
             state,
+            last_renew: SystemTime::now(),
         })
     }
 
@@ -120,19 +124,22 @@ impl Task {
         if self.lease.is_none() {
             panic!("tried to lease a task that was initialized without lease");
         }
-        send_keep_alive(&mut self.client, self.lease.unwrap()).await?;
 
-        let interrupt = self.client.get(&self.interrupt_key[..], None).await?;
-        if let Some(first) = interrupt.kvs().first() {
-            let next_status = match first.key() {
-                b"canceled" => TaskStatus::Canceled,
-                b"paused" => TaskStatus::Paused,
-                _ => panic!("unknown interrupt reason"),
-            };
+        if RENEW_DURATION < self.last_renew.elapsed().unwrap() {
+            send_keep_alive(&mut self.client, self.lease.unwrap()).await?;
 
-            let delete_interrupt = vec![TxnOp::delete(&self.interrupt_key[..], None)];
-            self.state.status = next_status;
-            self.update_state_noalive(delete_interrupt).await?;
+            let interrupt = self.client.get(&self.interrupt_key[..], None).await?;
+            if let Some(first) = interrupt.kvs().first() {
+                let next_status = match first.key() {
+                    b"canceled" => TaskStatus::Canceled,
+                    b"paused" => TaskStatus::Paused,
+                    _ => panic!("unknown interrupt reason"),
+                };
+
+                let delete_interrupt = vec![TxnOp::delete(&self.interrupt_key[..], None)];
+                self.state.status = next_status;
+                self.update_state_noalive(delete_interrupt).await?;
+            }
         }
 
         Ok(())
