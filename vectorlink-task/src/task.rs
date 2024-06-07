@@ -140,6 +140,8 @@ impl Task {
                 self.state.status = next_status;
                 self.update_state_noalive(delete_interrupt).await?;
             }
+
+            self.last_renew = SystemTime::now();
         }
 
         Ok(())
