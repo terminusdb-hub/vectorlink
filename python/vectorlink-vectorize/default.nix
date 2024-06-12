@@ -15,6 +15,5 @@ buildPythonPackage rec {
     boto3
     pybars3
     (pkgs.callPackage ../../vectorlink-task-py {})
-    #(import ../../vectorlink-task-py { inherit pkgs; })
   ];
 }

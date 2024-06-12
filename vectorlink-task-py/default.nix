@@ -1,4 +1,4 @@
-{ buildWorkspacePackage, python311, python311Packages, maturin }:
+{ buildWorkspacePackage, python311, python311Packages, maturin, protobuf }:
 buildWorkspacePackage rec {
   projectPath = ./.;
 
@@ -7,6 +7,7 @@ buildWorkspacePackage rec {
     python311
     python311Packages.installer
     maturin
+    protobuf
   ];
 
   buildPhase = ''
