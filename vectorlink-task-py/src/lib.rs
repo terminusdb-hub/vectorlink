@@ -1,5 +1,7 @@
 #![allow(non_local_definitions)]
 
+use std::time::Duration;
+
 use ::vectorlink_task::{queue::Queue, task::Task};
 use pyo3::{exceptions::PyException, prelude::*, types::PyNone};
 use serde_json::Value;
@@ -44,12 +46,24 @@ impl PyQueue {
         })
     }
 
-    fn next(&mut self) -> PyResult<PyTask> {
+    fn next(&mut self, py: Python) -> PyResult<PyTask> {
         let runtime = pyo3_asyncio::tokio::get_runtime();
-        let next_task = runtime
-            .block_on(self.0.next_task())
-            .map_err(|e| PyException::new_err(format!("could not retrieve next task: {e}")))?;
-        Ok(PyTask(next_task))
+        let next_task = runtime.block_on(async {
+            let mut interval = tokio::time::interval(Duration::from_millis(100));
+            loop {
+                tokio::select! {
+                    task = self.0.next_task() => {
+                        break task.map_err(|e| PyException::new_err(format!("could not retrieve next task: {e}")))
+                    }
+                    _ = interval.tick() => {
+                        if let Err(e) = py.check_signals() {
+                            break Err(e)
+                        }
+                    }
+                }
+            }
+        });
+        Ok(PyTask(next_task?))
     }
 
     #[pyo3(name = "__repr__")]
