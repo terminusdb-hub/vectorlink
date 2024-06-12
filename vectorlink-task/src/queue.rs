@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::key::*;
 use etcd_client::{
     Client, Compare, CompareOp, ConnectOptions, EventType, GetOptions, PutOptions, Txn, TxnOp,
@@ -143,5 +145,16 @@ impl Queue {
         }
 
         panic!("watch loop ended prematurely");
+    }
+}
+
+impl Debug for Queue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "<queue {} {}>",
+            String::from_utf8_lossy(&self.queue_prefix),
+            self.identity
+        )
     }
 }

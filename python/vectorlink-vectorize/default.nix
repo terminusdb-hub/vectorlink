@@ -14,8 +14,6 @@ buildPythonPackage rec {
     sentence-transformers
     boto3
     pybars3
-    etcd3
-    protobuf
-    (import ../vectorlink-task { inherit pkgs; })
+    (pkgs.callPackage ../../vectorlink-task-py {})
   ];
 }

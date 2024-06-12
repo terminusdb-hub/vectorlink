@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    fmt::Debug,
     marker::PhantomData,
     sync::{
         atomic::{self, AtomicBool},
@@ -36,6 +37,16 @@ pub struct Task {
     last_renew: SystemTime,
 }
 
+impl Debug for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "<task {} ({:?})>",
+            String::from_utf8_lossy(&self.task_key),
+            self.state.status
+        )
+    }
+}
 const RENEW_DURATION: Duration = Duration::from_secs(1);
 
 async fn get_task_state(client: &mut Client, task_key: &[u8]) -> Result<TaskData, TaskStateError> {
@@ -118,6 +129,10 @@ impl Task {
             state,
             last_renew: SystemTime::now(),
         })
+    }
+
+    pub fn task_id(&self) -> &str {
+        &self.task_id
     }
 
     pub async fn alive(&mut self) -> Result<(), TaskStateError> {

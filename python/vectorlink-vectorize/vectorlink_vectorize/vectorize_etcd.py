@@ -1,4 +1,4 @@
-from vectorlink_task.etcd_task import TaskQueue, TaskInterrupted
+from vectorlink_task import Queue
 from vectorlink_vectorize import vectorize
 import sys
 import json
@@ -38,7 +38,9 @@ def byte_offset_for_line_number(bucket_name, index_key, line_number):
 def start_(task):
     global backend
     global chunk_size
-    init = task.init()
+    print("got to this point")
+    init = task.init
+    print("2 got to this point")
     # bucket name
     # strings input key
     # newline-index input key
@@ -58,7 +60,7 @@ def start_(task):
     template_string = init['template']
     template = pybars.Compiler().compile(template_string)
 
-    progress = task.progress()
+    progress = task.progress
     if progress is None:
         # first run. let's start a multipart upload
         upload_id = s3.create_multipart_upload(
@@ -66,7 +68,7 @@ def start_(task):
             Key=output_key)['UploadId']
 
         progress = {'count': 0, 'upload_id': upload_id, 'parts':[]}
-        task.set_progress(progress)
+        task.progress = progress
     else:
         upload_id = progress['upload_id']
 
@@ -119,7 +121,7 @@ def start_(task):
             etag = result['ETag']
             progress['parts'].append({'PartNumber':part_number, 'ETag': etag})
             progress['count'] += embeddings_queued
-            task.set_progress(progress)
+            task.progress = progress
             prepared_part.clear()
             part_number += 1
             embeddings_queued = 0
@@ -141,7 +143,7 @@ def start_(task):
         etag = result['ETag']
         progress['parts'].append({'PartNumber':part_number, 'ETag': etag})
         progress['count'] += embeddings_queued
-        task.set_progress(progress)
+        task.progress = progress
 
     response = s3.complete_multipart_upload(
         Bucket=bucket_name,
@@ -155,8 +157,6 @@ def start(task):
     task.start()
     try:
         start_(task)
-    except TaskInterrupted as e:
-        pass
     except Exception as e:
         stack_trace = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
         task.finish_error(stack_trace)
@@ -165,8 +165,6 @@ def resume(task):
     task.resume()
     try:
         start_(task)
-    except TaskInterrupted as e:
-        pass
     except Exception as e:
         task.finish_error(str(e))
 
@@ -195,25 +193,25 @@ def main():
         etcd = os.getenv('ETCD_HOST')
 
     if etcd is not None:
-        queue = TaskQueue(f'vectorizer/{args.backend}', identity, host=etcd)
+        queue = Queue([etcd], f'vectorizer/{args.backend}', identity)
     else:
-        queue = TaskQueue(f'vectorizer/{args.backend}', identity)
+        queue = Queue(["localhost:2379"], f'vectorizer/{args.backend}', identity)
 
     backend = vectorize.init_backend(args.backend)
 
     print('start main loop', file=sys.stderr)
     try:
         while True:
-            task = queue.next_task()
-            print('picking up task: ' + task.task_id, file=sys.stderr)
-            match task.status():
+            task = queue.next()
+            print('picking up task: ' + task.id, file=sys.stderr)
+            match task.status:
                 case 'pending':
-                    print(f'starting task {task.task_id}..', file=sys.stderr)
+                    print(f'starting task {task.id}..', file=sys.stderr)
                     start(task)
                 case 'resuming':
                     resume(task)
                 case _:
-                    sys.stderr.write(f'cannot process task with status {task.status()}\n')
+                    sys.stderr.write(f'cannot process task with status {task.status}\n')
     except SystemExit:
         pass
 

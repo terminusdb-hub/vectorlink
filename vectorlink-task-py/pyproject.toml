@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "vectorlink-task"
+version = "0.1.0"
+description = ""
+authors = ["Matthijs van Otterdijk <matthijs@terminusdb.com>"]
+readme = "README.md"
+
+# since maturin is actually building this package, we're only using
+# poetry for dependency management and dev shells
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+maturin = "^1.3.0"
+
+[build-system]
+requires = ["maturin>=1.3,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "vectorlink-task"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version"]
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "vectorlink_task"
+
