@@ -43,6 +43,7 @@
           vectorlink-task-monitor = pkgs.callPackage ./vectorlink-task-monitor {};
           vectorlink-task-py = pkgs.callPackage ./vectorlink-task-py {};
           vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
+          task-util = pkgs.callPackage ./task-util {};
           line-index = pkgs.callPackage ./line-index {};
           vectorlink-vectorize = pkgs.callPackage python/vectorlink-vectorize {};
           create-vectorize-tasks = pkgs.callPackage python/create-vectorize-task {};

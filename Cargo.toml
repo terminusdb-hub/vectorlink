@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [ "line-index",
-"parallel-hnsw",
+"parallel-hnsw", "task-util",
 "vectorlink",
 "vectorlink-store",
 "vectorlink-task",

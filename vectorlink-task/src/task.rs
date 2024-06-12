@@ -6,7 +6,7 @@ use std::{
         atomic::{self, AtomicBool},
         Arc,
     },
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use async_trait::async_trait;
@@ -34,6 +34,7 @@ pub struct Task {
     queue_identity: String,
     lease: Option<i64>,
     state: TaskData,
+    last_renew: SystemTime,
 }
 
 impl Debug for Task {
@@ -46,6 +47,7 @@ impl Debug for Task {
         )
     }
 }
+const RENEW_DURATION: Duration = Duration::from_secs(1);
 
 async fn get_task_state(client: &mut Client, task_key: &[u8]) -> Result<TaskData, TaskStateError> {
     let response = client.get(task_key, None).await?;
@@ -93,10 +95,12 @@ async fn keep_alive_continuously(
     lease: i64,
     canary: Arc<AtomicBool>,
 ) -> Result<(), LeaseExpired> {
+    let mut interval_stream = tokio::time::interval(Duration::from_secs(1));
+    interval_stream.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     while canary.load(atomic::Ordering::Relaxed) {
+        interval_stream.tick().await;
         eprintln!("keeping alive..");
         send_keep_alive(&mut client, lease).await?;
-        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
     Ok(())
@@ -123,6 +127,7 @@ impl Task {
             queue_identity,
             lease,
             state,
+            last_renew: SystemTime::now(),
         })
     }
 
@@ -134,19 +139,24 @@ impl Task {
         if self.lease.is_none() {
             panic!("tried to lease a task that was initialized without lease");
         }
-        send_keep_alive(&mut self.client, self.lease.unwrap()).await?;
 
-        let interrupt = self.client.get(&self.interrupt_key[..], None).await?;
-        if let Some(first) = interrupt.kvs().first() {
-            let next_status = match first.key() {
-                b"canceled" => TaskStatus::Canceled,
-                b"paused" => TaskStatus::Paused,
-                _ => panic!("unknown interrupt reason"),
-            };
+        if RENEW_DURATION < self.last_renew.elapsed().unwrap() {
+            send_keep_alive(&mut self.client, self.lease.unwrap()).await?;
 
-            let delete_interrupt = vec![TxnOp::delete(&self.interrupt_key[..], None)];
-            self.state.status = next_status;
-            self.update_state_noalive(delete_interrupt).await?;
+            let interrupt = self.client.get(&self.interrupt_key[..], None).await?;
+            if let Some(first) = interrupt.kvs().first() {
+                let next_status = match first.key() {
+                    b"canceled" => TaskStatus::Canceled,
+                    b"paused" => TaskStatus::Paused,
+                    _ => panic!("unknown interrupt reason"),
+                };
+
+                let delete_interrupt = vec![TxnOp::delete(&self.interrupt_key[..], None)];
+                self.state.status = next_status;
+                self.update_state_noalive(delete_interrupt).await?;
+            }
+
+            self.last_renew = SystemTime::now();
         }
 
         Ok(())
@@ -567,10 +577,11 @@ impl<Init: DeserializeOwned, Progress: Serialize + DeserializeOwned + Send + 'st
 
         send_keep_alive(&mut client, lease).await?;
 
-        tokio::spawn(keep_alive_continuously(client, lease, canary));
+        let handle = tokio::spawn(keep_alive_continuously(client, lease, canary));
 
         Ok(LivenessGuard {
             canary: canary2,
+            handle: Some(handle),
             expecting_liveness: true,
         })
     }
@@ -653,6 +664,7 @@ impl<Init, Progress: Clone + Send + 'static> SyncTaskLiveness<Init, Progress> {
 
         Ok(LivenessGuard {
             canary: canary2,
+            handle: None,
             expecting_liveness: true,
         })
     }
@@ -660,6 +672,7 @@ impl<Init, Progress: Clone + Send + 'static> SyncTaskLiveness<Init, Progress> {
 
 pub struct LivenessGuard {
     canary: Arc<AtomicBool>,
+    handle: Option<JoinHandle<Result<(), LeaseExpired>>>,
     expecting_liveness: bool,
 }
 

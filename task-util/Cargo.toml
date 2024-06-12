@@ -1,0 +1,11 @@
+[package]
+name = "task-util"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.6", features = ["derive"] }
+etcd-client = "0.13.0"
+serde_json = "1.0.117"
+tokio = { version = "1.38.0", features = ["full"] }
+vectorlink-task = { version = "0.1.0", path = "../vectorlink-task" }
