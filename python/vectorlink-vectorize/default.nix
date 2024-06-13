@@ -14,6 +14,6 @@ buildPythonPackage rec {
     sentence-transformers
     boto3
     pybars3
-    (pkgs.callPackage ../../vectorlink-task-py {})
+    vectorlink.vectorlink-task-py
   ];
 }

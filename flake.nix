@@ -92,6 +92,7 @@
         let pkgs = nixpkgsFor.${system};in
         {
           rust-shell = pkgs.callPackage nix/rust-shell.nix {};
+          manage-shell = pkgs.callPackage nix/manage-shell.nix {};
           python-task-shell = pkgs.callPackage nix/python-task-shell.nix {};
         });
     }

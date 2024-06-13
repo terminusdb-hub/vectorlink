@@ -12,7 +12,7 @@ let rustFlagsFor = {
     };
 in
 path:
-{nixpkgs-unstable, rust-overlay, crane, ...}:
+{nixpkgs-unstable, rust-overlay, crane, self, ...}:
 system:
 import nixpkgs-unstable {
   inherit system;
@@ -20,6 +20,7 @@ import nixpkgs-unstable {
   overlays = [
     (import rust-overlay)
     (final: prev: rec {
+      vectorlink = self.packages.${system};
       craneLib = (crane.mkLib prev).overrideToolchain final.rust-bin.nightly.latest.minimal;
       rust-args = {
         nativeBuildInputs = [
