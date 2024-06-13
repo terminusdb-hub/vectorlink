@@ -87,6 +87,13 @@
             program = "${p.read-line-from-index}/bin/read-line-from-index";
           };
         });
+
+      devShells = forAllSystems (system :
+        let pkgs = nixpkgsFor.${system};in
+        {
+          rust-shell = pkgs.callPackage nix/rust-shell.nix {};
+          python-task-shell = pkgs.callPackage nix/python-task-shell.nix {};
+        });
     }
   );
 }
