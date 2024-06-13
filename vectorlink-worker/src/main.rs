@@ -20,8 +20,19 @@ fn generate_identity() -> String {
     "worker".to_string()
 }
 
+fn init_prometheus() {
+    let counter = register_counter!("test_counter", "Number of tasks processed").unwrap();
+    let gauge = register_gauge!("test_gauge", "Value of metric").unwrap();
+    counter.inc_by(1.0);
+    gauge.set(1.0);
+    (counter, gauge)
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let (counter, gauge) = init_prometheus();
+    counter.inc_by(1.0);
+    gauge.inc_by(-6.0);
     let args = Command::parse();
     let mut queue = Queue::connect(
         args.etcd,
