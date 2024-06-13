@@ -2,6 +2,7 @@ mod handler;
 
 use clap::Parser;
 use vectorlink_task::{queue::Queue, task::TaskHandler};
+use prometheus_exporter::{self, prometheus::register_counter};
 
 use crate::handler::VectorlinkTaskHandler;
 
