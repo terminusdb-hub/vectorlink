@@ -66,10 +66,6 @@
             type = "app";
             program = "${p.vectorlink-task-monitor}/bin/task-monitor";
           };
-          task-monitor-rs = {
-            type = "app";
-            program = "${p.vectorlink-task-monitor-rs}/bin/vectorlink-task-monitor";
-          };
           vectorize-server = {
             type = "app";
             program = "${p.vectorlink-vectorize}/bin/vectorize-server";

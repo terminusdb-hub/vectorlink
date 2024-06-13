@@ -8,5 +8,7 @@ mkShell {
     vectorlink.task-util
     vectorlink.create-vectorize-tasks
     vectorlink.read-line-from-index
+    etcd
+    jq
   ];
 }
