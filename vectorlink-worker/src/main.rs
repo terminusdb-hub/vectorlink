@@ -19,13 +19,6 @@ fn generate_identity() -> String {
     "worker".to_string()
 }
 
-fn wait() -> (){
-    use std::io::{self, Write};
-    println!("Press enter to continue...");
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Command::parse();
