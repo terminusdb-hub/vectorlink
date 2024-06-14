@@ -3495,6 +3495,8 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "etcd-client 0.12.4",
+ "prometheus",
+ "prometheus_exporter",
  "serde",
  "serde_json",
  "thiserror",
@@ -3536,8 +3538,6 @@ dependencies = [
  "async-trait",
  "clap",
  "parallel-hnsw",
- "prometheus",
- "prometheus_exporter",
  "serde",
  "serde_json",
  "thiserror",
