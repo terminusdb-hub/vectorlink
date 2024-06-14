@@ -1,14 +1,14 @@
-// mod handler;
+mod handler;
 
 use clap::Parser;
 use prometheus::core::{AtomicF64, GenericCounter};
-// use vectorlink_task::{queue::Queue, task::TaskHandler};
+use vectorlink_task::{queue::Queue, task::TaskHandler};
 use prometheus_exporter::{
     self, 
     prometheus::{register_counter, register_gauge, TextEncoder, gather},
 };
 
-// use crate::handler::VectorlinkTaskHandler;
+use crate::handler::VectorlinkTaskHandler;
 
 #[derive(Parser, Debug)]
 struct Command {
@@ -56,19 +56,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     worker_started_counter.inc();
 
-    // let args = Command::parse();
-    // let mut queue = Queue::connect(
-    //     args.etcd,
-    //     None,
-    //     args.service,
-    //     args.identity.unwrap_or_else(generate_identity),
-    // )
-    // .await?;
+    let args = Command::parse();
+    let mut queue = Queue::connect(
+        args.etcd,
+        None,
+        args.service,
+        args.identity.unwrap_or_else(generate_identity),
+    )
+    .await?;
     successful_connection_counter.inc();
 
-    // VectorlinkTaskHandler::process_queue(&mut queue).await?;
+    VectorlinkTaskHandler::process_queue(&mut queue).await?;
     successful_task_counter.inc();
-    
+
     // wait(); // for testing; you can see the metrics at http://localhost:9184/metrics
     unreachable!();
 }
