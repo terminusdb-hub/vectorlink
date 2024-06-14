@@ -48,6 +48,9 @@ fn test_prometheus() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let binding = "127.0.0.1:9184".parse().unwrap();
+    prometheus_exporter::start(binding).unwrap();
+    
     let (counter, gauge) = test_prometheus();
     let args = Command::parse();
     let mut queue = Queue::connect(
