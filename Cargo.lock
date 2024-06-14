@@ -3542,8 +3542,6 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
- "vectorlink",
- "vectorlink-task",
 ]
 
 [[package]]
