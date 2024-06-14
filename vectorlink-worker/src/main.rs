@@ -29,6 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.identity.unwrap_or_else(generate_identity),
     )
     .await?;
+
     VectorlinkTaskHandler::process_queue(&mut queue).await?;
 
     unreachable!();

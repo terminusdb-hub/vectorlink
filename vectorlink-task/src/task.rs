@@ -24,6 +24,13 @@ use crate::{
     queue::Queue,
 };
 
+use prometheus::core::{AtomicF64, GenericCounter};
+type C = GenericCounter<AtomicF64>;
+use prometheus_exporter::{
+    self,
+    prometheus::{register_counter, TextEncoder, gather},
+};
+
 #[derive(Clone)]
 pub struct Task {
     client: Client,
@@ -440,13 +447,46 @@ where
         live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Complete, Self::Error>;
 
+    fn start_prometheus_exporter() -> () {
+        let binding = "127.0.0.1:9184".parse().unwrap();
+        prometheus_exporter::start(binding).unwrap();
+    }
+
+    fn register_metrics() -> (C, C, C, C, C, C, C) {
+        let task_claimed_counter = register_counter!("task_claimed_counter", "Number of tasks claimed").unwrap();
+        let task_started_counter = register_counter!("task_started_counter", "Number of tasks started").unwrap();
+        let task_spawned_counter = register_counter!("task_spawned_counter", "Number of tasks spawned").unwrap();
+        let task_resumed_counter = register_counter!("task_resumed_counter", "Number of tasks resumed").unwrap();
+        let spawn_error_counter = register_counter!("spawn_error_counter", "Number of tasks that encountered an error during spawn").unwrap();
+        let task_finish_ok_counter = register_counter!("task_finish_ok_counter", "Number of tasks that finished successfully").unwrap();
+        let task_finish_err_counter = register_counter!("task_finish_err_counter", "Number of tasks that finished with an error").unwrap();
+        (task_claimed_counter, task_started_counter, task_spawned_counter, task_resumed_counter, spawn_error_counter, task_finish_ok_counter, task_finish_err_counter)
+    }
+
     async fn process_queue(queue: &mut Queue) -> Result<(), TaskStateError> {
+        Self::start_prometheus_exporter();
+        let (
+            task_claimed_counter,
+            task_started_counter,
+            task_spawned_counter,
+            task_resumed_counter,
+            spawn_error_counter,
+            task_finish_ok_counter,
+            task_finish_err_counter,
+        ) = Self::register_metrics();
+
+        let metric_families = gather();
+        let encoder = TextEncoder::new();
+        encoder.encode_to_string(&metric_families).unwrap(); // not sure yet if this is necessary
+
         loop {
             let mut task = queue.next_task().await?;
+            task_claimed_counter.inc();
             // todo, the clone here is not really desirable. we need a way to get the liveness without copying a full task
             match task.status() {
                 TaskStatus::Pending => {
                     task.start().await?;
+                    task_started_counter.inc();
                     let init_live = TaskLiveness::new(task.clone());
                     match tokio::task::spawn(Self::initialize(init_live)).await {
                         Ok(Ok(progress)) => {
@@ -454,6 +494,7 @@ where
                         }
                         Ok(Err(e)) => {
                             task.finish_error(e).await?;
+                            spawn_error_counter.inc();
                             // end task
                             continue;
                         }
@@ -465,13 +506,16 @@ where
                                 }
                                 Err(e) => task.finish_error(e.to_string()).await?,
                             };
+                            spawn_error_counter.inc();
                             // end task
                             continue;
                         }
                     }
+                    task_spawned_counter.inc();
                 }
                 TaskStatus::Resuming => {
                     task.resume().await?;
+                    task_resumed_counter.inc();
                 }
                 _ => panic!("task was not in proper state"),
             };
@@ -481,16 +525,19 @@ where
 
             let result = spawned_handler.await;
             task.refresh_state().await?;
-
+            
             match result {
                 Ok(Ok(c)) => {
                     task.finish(c).await?;
+                    task_finish_ok_counter.inc();
                 }
                 Ok(Err(e)) => {
                     task.finish_error(e).await?;
+                    task_finish_err_counter.inc();
                 }
                 Err(e) => {
                     task.finish_error(e.to_string()).await?;
+                    task_finish_err_counter.inc();
                 }
             }
         }
