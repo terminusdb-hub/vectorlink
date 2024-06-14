@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -6,7 +8,7 @@ use vectorlink::batch::index_domain;
 use vectorlink::openai::Model;
 use vectorlink_task::task::{SyncTaskLiveness, TaskHandler, TaskLiveness};
 
-use parallel_hnsw::progress::{Interrupt, ProgressMonitor};
+use parallel_hnsw::progress::{Interrupt, LayerStatistics, ProgressMonitor};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BuildIndexRequest {
@@ -26,12 +28,18 @@ pub struct BuildIndexCompletion {
 
 pub struct VectorlinkTaskHandler;
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct IndexProgress {
+    state: Value,
+    statistics: HashMap<usize, LayerStatistics>,
+}
+
 #[async_trait]
 impl TaskHandler for VectorlinkTaskHandler {
     type Init = BuildIndexRequest;
 
     // TODO: actual progress should not be an arbitrary json object but a meaningful serializable state object.
-    type Progress = Value;
+    type Progress = IndexProgress;
 
     type Complete = BuildIndexCompletion;
 
@@ -40,7 +48,10 @@ impl TaskHandler for VectorlinkTaskHandler {
     async fn initialize(
         _live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Progress, Self::Error> {
-        Ok(json!({}))
+        Ok(IndexProgress {
+            state: json!({}),
+            statistics: HashMap::new(),
+        })
     }
     async fn process(
         live: TaskLiveness<Self::Init, Self::Progress>,
@@ -77,7 +88,7 @@ impl TaskHandler for VectorlinkTaskHandler {
     }
 }
 
-struct TaskMonitor(SyncTaskLiveness<BuildIndexRequest, Value>);
+struct TaskMonitor(SyncTaskLiveness<BuildIndexRequest, IndexProgress>);
 
 impl ProgressMonitor for TaskMonitor {
     fn update(
@@ -85,7 +96,20 @@ impl ProgressMonitor for TaskMonitor {
         update: parallel_hnsw::progress::ProgressUpdate,
     ) -> Result<(), parallel_hnsw::progress::Interrupt> {
         let liveness = &mut self.0;
-        liveness.set_progress(update.state).map_err(|_| Interrupt)
+        let mut progress = liveness.progress().unwrap().clone();
+        progress.state = update.state;
+        liveness.set_progress(progress).map_err(|_| Interrupt)
+    }
+
+    fn layer_statistics(
+        &mut self,
+        layer: usize,
+        statistics: parallel_hnsw::progress::LayerStatistics,
+    ) -> Result<(), Interrupt> {
+        let liveness = &mut self.0;
+        let mut progress = liveness.progress().unwrap().clone();
+        progress.statistics.insert(layer, statistics);
+        liveness.set_progress(progress).map_err(|_| Interrupt)
     }
 
     fn keep_alive(&mut self) -> Box<dyn std::any::Any> {
