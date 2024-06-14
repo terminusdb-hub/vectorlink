@@ -5,8 +5,10 @@ use thiserror::Error;
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct LayerStatistics {
-    recall: Option<f32>,
-    node_count: usize,
+    pub node_count: usize,
+    pub neighbors: usize,
+    pub recall: Option<f32>,
+    pub improvement: Option<f32>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -23,7 +25,7 @@ pub trait ProgressMonitor: Send {
     fn update(&mut self, update: ProgressUpdate) -> Result<(), Interrupt>;
     fn layer_statistics(
         &mut self,
-        layer: usize,
+        layer_from_top: usize,
         statistics: LayerStatistics,
     ) -> Result<(), Interrupt>;
     fn keep_alive(&mut self) -> Box<dyn Any>;

@@ -31,8 +31,8 @@ use rand_distr::{Distribution, Exp, Uniform};
 use rayon::prelude::*;
 use std::fmt::Debug;
 
-use crate::search::assert_layer_invariants;
 use crate::{priority_queue::PriorityQueue, search::match_within_epsilon};
+use crate::{progress::LayerStatistics, search::assert_layer_invariants};
 
 const PRIMES: [usize; 43] = [
     1, 2, 59063, 79193, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
@@ -916,6 +916,17 @@ impl<C: Comparator + 'static> Hnsw<C> {
                 false,
             );
             hnsw.layers.push(layer);
+            progress
+                .layer_statistics(
+                    i,
+                    LayerStatistics {
+                        node_count: slice_length,
+                        neighbors,
+                        recall: None,
+                        improvement: None,
+                    },
+                )
+                .unwrap();
             eprintln!("linking to better neighbors (during construction)");
             let old_layer_count = hnsw.layer_count();
             hnsw.improve_index(bp, None, progress);
@@ -1612,6 +1623,15 @@ impl<C: Comparator + 'static> Hnsw<C> {
         // let's start with a neighborhood optimization so we don't overpromote
         let mut recall = last_recall
             .unwrap_or_else(|| self.stochastic_recall_at(layer_from_top, bp.optimization));
+        let mut statistics = LayerStatistics {
+            node_count: self.vector_count(),
+            neighbors: self.neighborhood_size(),
+            recall: Some(recall),
+            improvement: None,
+        };
+        progress
+            .layer_statistics(layer_from_top, statistics)
+            .unwrap();
 
         let mut improvement = 1.0;
         let mut bailout = 1;
@@ -1624,6 +1644,10 @@ impl<C: Comparator + 'static> Hnsw<C> {
                 let layer_count = self.layer_count();
                 eprintln!("improve_index_at is going to call improve_neighbors_upto");
                 recall = self.improve_neighbors_upto(current_layer_from_top + 1, op, None);
+                statistics.recall = Some(recall);
+                progress
+                    .layer_statistics(layer_from_top, statistics)
+                    .unwrap();
 
                 if recall == 1.0 {
                     current_layer_from_top += 1;
@@ -1644,6 +1668,10 @@ impl<C: Comparator + 'static> Hnsw<C> {
                     recall =
                         self.improve_neighbors_upto(current_layer_from_top + 1, op, Some(recall));
                     eprintln!("recall after promotion: {recall}");
+                    statistics.recall = Some(recall);
+                    progress
+                        .layer_statistics(layer_from_top, statistics)
+                        .unwrap();
                 }
 
                 current_layer_from_top += 1;
@@ -1651,6 +1679,11 @@ impl<C: Comparator + 'static> Hnsw<C> {
             bailout -= 1;
             improvement = recall - last_recall;
             eprintln!("outer loop improvement: {improvement}");
+            statistics.recall = Some(recall);
+            statistics.improvement = Some(improvement);
+            progress
+                .layer_statistics(layer_from_top, statistics)
+                .unwrap();
         }
 
         (recall, layer_from_top)
