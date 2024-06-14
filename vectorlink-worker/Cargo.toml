@@ -9,8 +9,8 @@ clap = { version = "4.5.4", features = ["derive"] }
 serde = { version = "1.0.198", features = ["derive"] }
 thiserror = "1.0.58"
 tokio = { version = "1.37.0", features = ["full"] }
-# vectorlink-task = {path = "../vectorlink-task"}
-# vectorlink = {path = "../vectorlink"}
+vectorlink-task = {path = "../vectorlink-task"}
+vectorlink = {path = "../vectorlink"}
 parallel-hnsw = { path = "../parallel-hnsw" }
 serde_json = "1.0.116"
 prometheus = "0.13.1"
