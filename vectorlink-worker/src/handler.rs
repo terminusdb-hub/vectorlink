@@ -31,7 +31,11 @@ pub struct VectorlinkTaskHandler;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct IndexProgress {
     state: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    centroid_state: Option<Value>,
     statistics: HashMap<usize, LayerStatistics>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    centroid_statistics: HashMap<usize, LayerStatistics>,
 }
 
 #[async_trait]
@@ -51,6 +55,8 @@ impl TaskHandler for VectorlinkTaskHandler {
         Ok(IndexProgress {
             state: json!({}),
             statistics: HashMap::new(),
+            centroid_state: None,
+            centroid_statistics: HashMap::new(),
         })
     }
     async fn process(
@@ -118,5 +124,28 @@ impl ProgressMonitor for TaskMonitor {
 
     fn alive(&mut self) -> Result<(), Interrupt> {
         self.0.keepalive().map_err(|_| Interrupt)
+    }
+
+    fn centroid_update(
+        &mut self,
+        update: parallel_hnsw::progress::ProgressUpdate,
+    ) -> Result<(), Interrupt> {
+        let liveness = &mut self.0;
+        let mut progress = liveness.progress().unwrap().clone();
+        progress.centroid_state = Some(update.state);
+        liveness.set_progress(progress).map_err(|_| Interrupt)
+    }
+
+    fn centroid_layer_statistics(
+        &mut self,
+        layer_from_top: usize,
+        statistics: LayerStatistics,
+    ) -> Result<(), Interrupt> {
+        let liveness = &mut self.0;
+        let mut progress = liveness.progress().unwrap().clone();
+        progress
+            .centroid_statistics
+            .insert(layer_from_top, statistics);
+        liveness.set_progress(progress).map_err(|_| Interrupt)
     }
 }

@@ -12,7 +12,7 @@ use serde_json::json;
 use crate::{
     keepalive,
     parameters::{BuildParameters, OptimizationParameters, PqBuildParameters, SearchParameters},
-    progress::{ProgressMonitor, ProgressUpdate},
+    progress::{PqProgressMonitor, ProgressMonitor, ProgressUpdate},
     AbstractVector, Comparator, Hnsw, OrderedFloat, Serializable, VectorId,
 };
 
@@ -307,8 +307,12 @@ impl<
         let vector_ids = (0..centroids.len()).map(VectorId).collect();
         let centroid_comparator = keepalive!(progress, CentroidComparator::new(centroids));
         let mut quantized_comparator = QuantizedComparator::new(&centroid_comparator);
-        let mut centroid_hnsw: Hnsw<CentroidComparator> =
-            Hnsw::generate(centroid_comparator, vector_ids, bp.centroids, progress);
+        let mut centroid_hnsw: Hnsw<CentroidComparator> = Hnsw::generate(
+            centroid_comparator,
+            vector_ids,
+            bp.centroids,
+            &mut PqProgressMonitor::wrap(progress),
+        );
         centroid_hnsw.improve_index(bp.centroids, None, progress);
 
         let centroid_quantizer: HnswQuantizer<

@@ -1623,9 +1623,12 @@ impl<C: Comparator + 'static> Hnsw<C> {
         // let's start with a neighborhood optimization so we don't overpromote
         let mut recall = last_recall
             .unwrap_or_else(|| self.stochastic_recall_at(layer_from_top, bp.optimization));
+        let layer = self
+            .get_layer_from_top(layer_from_top)
+            .expect("layer not found");
         let mut statistics = LayerStatistics {
-            node_count: self.vector_count(),
-            neighbors: self.neighborhood_size(),
+            node_count: layer.node_count(),
+            neighbors: layer.neighborhood_size,
             recall: Some(recall),
             improvement: None,
         };
