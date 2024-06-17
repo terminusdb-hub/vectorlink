@@ -74,7 +74,6 @@ impl From<LeaseExpired> for TaskStateError {
 }
 
 async fn send_keep_alive(client: &mut Client, lease: i64) -> Result<(), LeaseExpired> {
-    eprintln!("sending a keepalive");
     let (mut lease, mut lease_stream) = client.lease_keep_alive(lease).await?;
     lease.keep_alive().await?;
     let result = lease_stream
@@ -99,7 +98,6 @@ async fn keep_alive_continuously(
     interval_stream.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     while canary.load(atomic::Ordering::Relaxed) {
         interval_stream.tick().await;
-        eprintln!("keeping alive..");
         send_keep_alive(&mut client, lease).await?;
     }
 
