@@ -15,7 +15,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
-    task::JoinHandle,
+    task::{JoinError, JoinHandle},
 };
 use tokio_stream::StreamExt;
 
@@ -422,6 +422,18 @@ pub enum TaskStateError {
     TaskAlreadyRunning,
 }
 
+async fn handle_join_error(error: JoinError, task: &mut Task) -> Result<(), TaskStateError> {
+    match error.try_into_panic() {
+        Ok(panic) => {
+            task.finish_error(format!("task panicked: {panic:?}"))
+                .await?
+        }
+        Err(e) => task.finish_error(e.to_string()).await?,
+    };
+
+    Ok(())
+}
+
 #[async_trait]
 pub trait TaskHandler
 where
@@ -458,14 +470,7 @@ where
                             continue;
                         }
                         Err(e) => {
-                            match e.try_into_panic() {
-                                Ok(panic) => {
-                                    task.finish_error(format!("task panicked: {panic:?}"))
-                                        .await?
-                                }
-                                Err(e) => task.finish_error(e.to_string()).await?,
-                            };
-                            // end task
+                            handle_join_error(e, &mut task).await?;
                             continue;
                         }
                     }
@@ -490,7 +495,7 @@ where
                     task.finish_error(e).await?;
                 }
                 Err(e) => {
-                    task.finish_error(e.to_string()).await?;
+                    handle_join_error(e, &mut task).await?;
                 }
             }
         }
