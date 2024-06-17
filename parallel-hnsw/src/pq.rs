@@ -325,10 +325,13 @@ impl<
         //keepalive!(progress, {
         for chunk in comparator.vector_chunks() {
             timeit!({
-                let quantized: Vec<_> = chunk
-                    .into_par_iter()
-                    .map(|v| centroid_quantizer.quantize(&v))
-                    .collect();
+                let quantized: Vec<_> = keepalive!(
+                    progress,
+                    chunk
+                        .into_par_iter()
+                        .map(|v| centroid_quantizer.quantize(&v))
+                        .collect()
+                );
 
                 vids.extend(quantized_comparator.store(Box::new(quantized.into_iter())));
             })
