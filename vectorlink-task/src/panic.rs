@@ -26,7 +26,8 @@ pub fn set_panic_hook() {
     let old_hook = take_hook();
     set_hook(Box::new(move |info| {
         CURRENT_TASK.with(|t| {
-            if let Some(t) = t.borrow().as_ref() {
+            //if let Some(t) = t.borrow().as_ref() {
+            if false {
                 let msg = if let Some(p) = info.payload().downcast_ref::<&str>() {
                     p
                 } else if let Some(p) = info.payload().downcast_ref::<String>() {
@@ -90,13 +91,11 @@ pub async fn catch_panic<F: Future<Output = R> + Send + Unpin + 'static, R: Send
     task_id: String,
     future: F,
 ) -> Result<R, String> {
-    /*
     let handle = tokio::spawn(TaskFuture {
         task_id: task_id.clone(),
         inner: Box::new(future),
     });
-    */
-    let handle = tokio::spawn(future);
+    //let handle = tokio::spawn(future);
     eprintln!("before awaiting the handle");
     let result = handle.await;
     eprintln!("after awaiting the handle");
