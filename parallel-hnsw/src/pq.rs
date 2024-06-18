@@ -327,7 +327,7 @@ impl<
         let mut vids: Vec<VectorId> = Vec::new();
         eprintln!("quantizing");
         //keepalive!(progress, {
-        for chunk in comparator.vector_chunks() {
+        for chunk in keepalive!(progress, comparator.vector_chunks()) {
             timeit!({
                 let quantized: Vec<_> = keepalive!(
                     progress,
