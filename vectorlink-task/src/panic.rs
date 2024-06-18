@@ -65,8 +65,10 @@ impl<T, F: Future<Output = T> + Unpin> Future for TaskFuture<T, F> {
         CURRENT_TASK.set(Some(self.task_id.clone()));
 
         // clear the error
-        let mut error_map = LAST_ERRORS.lock().expect("errormap write failed?");
-        error_map.remove(&self.task_id);
+        {
+            let mut error_map = LAST_ERRORS.lock().expect("errormap write failed?");
+            error_map.remove(&self.task_id);
+        }
 
         // set up canary to clear current task
         // When it drops (either due to succesful end of poll, or a
