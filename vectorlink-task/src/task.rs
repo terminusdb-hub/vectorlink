@@ -485,7 +485,7 @@ where
                     task.finish_error(e).await?;
                 }
                 Err(e) => {
-                    task.finish_error(e).await?;
+                    task.finish_error(json!({"panic":e})).await?;
                 }
             }
         }
