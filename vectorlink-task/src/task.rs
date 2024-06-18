@@ -12,6 +12,7 @@ use std::{
 use async_trait::async_trait;
 use etcd_client::{Client, PutOptions, Txn, TxnOp};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::json;
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -460,7 +461,7 @@ where
                         }
                         Err(e) => {
                             eprintln!("task panicked! setting error");
-                            task.finish_error(e).await?;
+                            task.finish_error(json!({"panic":e})).await?;
                             continue;
                         }
                     }
