@@ -94,8 +94,14 @@ pub async fn catch_panic<F: Future<Output = R> + Send + Unpin + 'static, R: Send
         task_id: task_id.clone(),
         inner: Box::new(future),
     });
-    match handle.await {
-        Ok(r) => Ok(r),
+    eprintln!("before awaiting the handle");
+    let result = handle.await;
+    eprintln!("after awaiting the handle");
+    match result {
+        Ok(r) => {
+            eprintln!("catch_panic detected no error");
+            Ok(r)
+        }
         Err(_e) => {
             eprintln!("catch_panic detected an error!");
             // the task panicked. Time to retrieve the error from the global hashmap.
