@@ -15,12 +15,13 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, oneshot},
-    task::{JoinError, JoinHandle},
+    task::JoinHandle,
 };
 use tokio_stream::StreamExt;
 
 use crate::{
     key::{concat_bytes, task_key},
+    panic::{catch_panic, set_panic_hook},
     queue::Queue,
 };
 
@@ -420,18 +421,6 @@ pub enum TaskStateError {
     TaskAlreadyRunning,
 }
 
-async fn handle_join_error(error: JoinError, task: &mut Task) -> Result<(), TaskStateError> {
-    match error.try_into_panic() {
-        Ok(panic) => {
-            task.finish_error(format!("task panicked: {panic:?}"))
-                .await?
-        }
-        Err(e) => task.finish_error(e.to_string()).await?,
-    };
-
-    Ok(())
-}
-
 #[async_trait]
 pub trait TaskHandler
 where
@@ -451,6 +440,7 @@ where
     ) -> Result<Self::Complete, Self::Error>;
 
     async fn process_queue(queue: &mut Queue) -> Result<(), TaskStateError> {
+        set_panic_hook();
         loop {
             let mut task = queue.next_task().await?;
             // todo, the clone here is not really desirable. we need a way to get the liveness without copying a full task
@@ -458,7 +448,8 @@ where
                 TaskStatus::Pending => {
                     task.start().await?;
                     let init_live = TaskLiveness::new(task.clone());
-                    match tokio::task::spawn(Self::initialize(init_live)).await {
+                    match catch_panic(task.task_id().to_string(), Self::initialize(init_live)).await
+                    {
                         Ok(Ok(progress)) => {
                             task.set_progress(progress).await?;
                         }
@@ -468,7 +459,7 @@ where
                             continue;
                         }
                         Err(e) => {
-                            handle_join_error(e, &mut task).await?;
+                            task.finish_error(e).await?;
                             continue;
                         }
                     }
@@ -480,7 +471,7 @@ where
             };
 
             let live = TaskLiveness::new(task.clone());
-            let spawned_handler = tokio::task::spawn(Self::process(live));
+            let spawned_handler = catch_panic(task.task_id().to_string(), Self::process(live));
 
             let result = spawned_handler.await;
             task.refresh_state().await?;
@@ -493,7 +484,7 @@ where
                     task.finish_error(e).await?;
                 }
                 Err(e) => {
-                    handle_join_error(e, &mut task).await?;
+                    task.finish_error(e).await?;
                 }
             }
         }
@@ -675,6 +666,7 @@ impl<Init, Progress: Clone + Send + 'static> SyncTaskLiveness<Init, Progress> {
 
 pub struct LivenessGuard {
     canary: Arc<AtomicBool>,
+    #[allow(unused)] // handle is here for its drop trait
     handle: Option<JoinHandle<Result<(), LeaseExpired>>>,
     expecting_liveness: bool,
 }
