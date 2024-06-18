@@ -3422,6 +3422,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "vectorlink-quantizer"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "parallel-hnsw",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "vectorlink",
+ "vectorlink-task",
+]
+
+[[package]]
 name = "vectorlink-store"
 version = "0.1.0"
 dependencies = [
