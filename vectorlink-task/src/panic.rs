@@ -26,7 +26,6 @@ pub fn set_panic_hook() {
     let old_hook = take_hook();
     set_hook(Box::new(move |info| {
         CURRENT_TASK.with(|t| {
-            /*
             if let Some(t) = t.borrow().as_ref() {
                 let msg = if let Some(p) = info.payload().downcast_ref::<&str>() {
                     p
@@ -42,9 +41,8 @@ pub fn set_panic_hook() {
                 let mut error_map = LAST_ERRORS.lock().expect("could not retrieve error map!");
                 error_map.insert(t.clone(), error);
             } else {
-            */
-            old_hook(info);
-            //}
+                old_hook(info);
+            }
         })
     }));
 }
