@@ -337,7 +337,10 @@ impl<
                         .collect()
                 );
 
-                vids.extend(quantized_comparator.store(Box::new(quantized.into_iter())));
+                keepalive!(
+                    progress,
+                    vids.extend(quantized_comparator.store(Box::new(quantized.into_iter())))
+                );
             })
         }
         //});
