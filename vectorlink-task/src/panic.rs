@@ -90,10 +90,13 @@ pub async fn catch_panic<F: Future<Output = R> + Send + Unpin + 'static, R: Send
     task_id: String,
     future: F,
 ) -> Result<R, String> {
+    /*
     let handle = tokio::spawn(TaskFuture {
         task_id: task_id.clone(),
         inner: Box::new(future),
     });
+    */
+    let handle = tokio::spawn(future);
     eprintln!("before awaiting the handle");
     let result = handle.await;
     eprintln!("after awaiting the handle");
