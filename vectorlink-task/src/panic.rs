@@ -35,7 +35,7 @@ pub fn set_panic_hook() {
                     "unknown error"
                 };
                 let bt = Backtrace::force_capture();
-                let error = format!("panic while running task {t}: {msg}\n{bt:?}");
+                let error = format!("panic while running task {t}: {msg}\n{bt}");
                 eprintln!("{}", error);
 
                 let mut error_map = LAST_ERRORS.lock().expect("could not retrieve error map!");

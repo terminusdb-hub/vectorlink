@@ -459,6 +459,7 @@ where
                             continue;
                         }
                         Err(e) => {
+                            eprintln!("task panicked! setting error");
                             task.finish_error(e).await?;
                             continue;
                         }
