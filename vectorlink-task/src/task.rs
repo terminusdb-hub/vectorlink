@@ -460,7 +460,6 @@ where
                             continue;
                         }
                         Err(e) => {
-                            eprintln!("task panicked! setting error");
                             task.finish_error(json!({"panic":e})).await?;
                             continue;
                         }
