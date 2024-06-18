@@ -326,8 +326,13 @@ impl<
         };
         let mut vids: Vec<VectorId> = Vec::new();
         eprintln!("quantizing");
-        //keepalive!(progress, {
-        for chunk in keepalive!(progress, comparator.vector_chunks()) {
+        let mut iter = comparator.vector_chunks();
+        loop {
+            let chunk = keepalive!(progress, iter.next());
+            if chunk.is_none() {
+                break;
+            }
+            let chunk = chunk.unwrap();
             timeit!({
                 let quantized: Vec<_> = keepalive!(
                     progress,
@@ -343,7 +348,7 @@ impl<
                 );
             })
         }
-        //});
+        std::mem::drop(iter);
 
         eprintln!("generating");
         let hnsw: Hnsw<QuantizedComparator> =
