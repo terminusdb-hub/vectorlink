@@ -34,7 +34,7 @@ pub struct IndexProgress {
     #[serde(skip_serializing_if = "Option::is_none")]
     centroid_state: Option<Value>,
     statistics: HashMap<usize, LayerStatistics>,
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    #[serde(skip_serializing_if = "HashMap::is_empty", default)]
     centroid_statistics: HashMap<usize, LayerStatistics>,
 }
 
