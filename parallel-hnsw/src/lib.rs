@@ -917,7 +917,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
             );
             hnsw.layers.push(layer);
             progress
-                .layer_statistics(
+                .set_layer_statistics(
                     i,
                     LayerStatistics {
                         node_count: slice_length,
@@ -1636,7 +1636,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
             improvement: None,
         };
         progress
-            .layer_statistics(layer_from_top, statistics)
+            .set_layer_statistics(layer_from_top, statistics)
             .unwrap();
 
         let mut improvement = 1.0;
@@ -1654,7 +1654,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
                 recall = self.stochastic_recall_at(current_layer_from_top, op);
                 statistics.recall = Some(recall);
                 progress
-                    .layer_statistics(layer_from_top, statistics)
+                    .set_layer_statistics(layer_from_top, statistics)
                     .unwrap();
 
                 if recall == 1.0 {
@@ -1678,7 +1678,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
                     eprintln!("recall after promotion: {recall}");
                     statistics.recall = Some(recall);
                     progress
-                        .layer_statistics(layer_from_top, statistics)
+                        .set_layer_statistics(layer_from_top, statistics)
                         .unwrap();
                 }
 
@@ -1690,7 +1690,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
             statistics.recall = Some(recall);
             statistics.improvement = Some(improvement);
             progress
-                .layer_statistics(layer_from_top, statistics)
+                .set_layer_statistics(layer_from_top, statistics)
                 .unwrap();
         }
 

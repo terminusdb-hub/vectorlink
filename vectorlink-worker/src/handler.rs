@@ -107,7 +107,7 @@ impl ProgressMonitor for TaskMonitor {
         liveness.set_progress(progress).map_err(|_| Interrupt)
     }
 
-    fn layer_statistics(
+    fn set_layer_statistics(
         &mut self,
         layer: usize,
         statistics: parallel_hnsw::progress::LayerStatistics,
@@ -136,7 +136,7 @@ impl ProgressMonitor for TaskMonitor {
         liveness.set_progress(progress).map_err(|_| Interrupt)
     }
 
-    fn centroid_layer_statistics(
+    fn set_centroid_layer_statistics(
         &mut self,
         layer_from_top: usize,
         statistics: LayerStatistics,
@@ -147,5 +147,50 @@ impl ProgressMonitor for TaskMonitor {
             .centroid_statistics
             .insert(layer_from_top, statistics);
         liveness.set_progress(progress).map_err(|_| Interrupt)
+    }
+
+    fn get_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        Ok(self
+            .0
+            .progress()
+            .and_then(|p| p.centroid_statistics.get(&layer_from_top))
+            .copied())
+    }
+
+    fn invalidate_layer_statistics(&mut self, layer_from_top: usize) -> Result<(), Interrupt> {
+        let progress = self.0.progress();
+        if progress.is_none() {
+            return Ok(());
+        }
+        let mut progress = progress.unwrap().clone();
+        progress.statistics.remove(&layer_from_top);
+        self.0.set_progress(progress).map_err(|_| Interrupt)
+    }
+
+    fn get_centroid_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        Ok(self
+            .0
+            .progress()
+            .and_then(|p| p.centroid_statistics.get(&layer_from_top))
+            .copied())
+    }
+
+    fn invalidate_centroid_layer_statistics(
+        &mut self,
+        layer_from_top: usize,
+    ) -> Result<(), Interrupt> {
+        let progress = self.0.progress();
+        if progress.is_none() {
+            return Ok(());
+        }
+        let mut progress = progress.unwrap().clone();
+        progress.centroid_statistics.remove(&layer_from_top);
+        self.0.set_progress(progress).map_err(|_| Interrupt)
     }
 }
