@@ -930,7 +930,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
             eprintln!("linking to better neighbors (during construction)");
             let old_layer_count = hnsw.layer_count();
             if i < partitions.len() - 1 {
-                hnsw.improve_index_at(i, bp, None, progress);
+                hnsw.improve_index_at(i, bp, progress);
             }
 
             let new_layer_count = hnsw.layer_count();
@@ -1615,7 +1615,6 @@ impl<C: Comparator + 'static> Hnsw<C> {
         &mut self,
         mut layer_from_top: usize,
         bp: BuildParameters,
-        last_recall: Option<f32>,
         progress: &mut dyn ProgressMonitor,
     ) -> (f32, usize) {
         // TODO: holding a guard for the duration of the entire function is bad style!
@@ -1623,9 +1622,15 @@ impl<C: Comparator + 'static> Hnsw<C> {
         let op = bp.optimization;
         let promotion_threshold = op.promotion_threshold;
 
+        let layer_statistics = progress.get_layer_statistics(layer_from_top).unwrap();
+
         // let's start with a neighborhood optimization so we don't overpromote
-        let mut recall = last_recall
+        let mut recall = layer_statistics
+            .and_then(|stats| stats.recall)
             .unwrap_or_else(|| self.stochastic_recall_at(layer_from_top, bp.optimization));
+
+        let maybe_improvement = layer_statistics.and_then(|stats| stats.improvement);
+
         let layer = self
             .get_layer_from_top(layer_from_top)
             .expect("layer not found");
@@ -1633,13 +1638,13 @@ impl<C: Comparator + 'static> Hnsw<C> {
             node_count: layer.node_count(),
             neighbors: layer.neighborhood_size,
             recall: Some(recall),
-            improvement: None,
+            improvement: maybe_improvement,
         };
         progress
             .set_layer_statistics(layer_from_top, statistics)
             .unwrap();
 
-        let mut improvement = 1.0;
+        let mut improvement = maybe_improvement.unwrap_or(1.0);
         let mut bailout = 1;
         let mut current_layer_from_top;
         while improvement >= promotion_threshold && recall < 1.0 && bailout != 0 {
@@ -1663,6 +1668,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
                 }
 
                 eprintln!("About to promote");
+                // NOTE: promotions MUST invalidate layer statistics!
                 if self.promote_at_layer(current_layer_from_top, bp, progress) {
                     let new_layer_count = self.layer_count();
                     eprintln!("New layer count: {new_layer_count}, old layer count: {layer_count}");
@@ -1770,7 +1776,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
                 "improve index, layer_from_top={layer_from_top}, layer_count: {}",
                 self.layer_count()
             );
-            (recall, layer_from_top) = self.improve_index_at(layer_from_top, bp, None, progress);
+            (recall, layer_from_top) = self.improve_index_at(layer_from_top, bp, progress);
             eprintln!("afterwards, layer_from_top is {layer_from_top}");
             layer_from_top += 1;
         }
