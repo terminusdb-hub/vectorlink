@@ -4,7 +4,7 @@ use itertools::Either;
 use parallel_hnsw::{
     parameters::{BuildParameters, OptimizationParameters, SearchParameters},
     pq::QuantizedHnsw,
-    progress::ProgressMonitor,
+    progress::{ProgressMonitor, SimpleProgressMonitor},
     AbstractVector, Hnsw, Serializable, VectorId,
 };
 use rayon::iter::IndexedParallelIterator;
@@ -250,24 +250,25 @@ impl HnswConfiguration {
         layer_from_top: usize,
         build_parameters: BuildParameters,
     ) -> bool {
+        let mut progress = SimpleProgressMonitor::default();
         match self {
             HnswConfiguration::QuantizedOpenAi(_model, q) => {
-                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
+                q.promote_at_layer(layer_from_top, build_parameters, &mut progress)
             }
             HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
-                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
+                q.promote_at_layer(layer_from_top, build_parameters, &mut progress)
             }
             HnswConfiguration::UnquantizedOpenAi(_model, h) => {
-                h.promote_at_layer(layer_from_top, build_parameters, &mut ())
+                h.promote_at_layer(layer_from_top, build_parameters, &mut progress)
             }
             HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
-                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
+                q.promote_at_layer(layer_from_top, build_parameters, &mut progress)
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
-                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
+                q.promote_at_layer(layer_from_top, build_parameters, &mut progress)
             }
             HnswConfiguration::Quantized1024By16(_, q) => {
-                q.promote_at_layer(layer_from_top, build_parameters, &mut ())
+                q.promote_at_layer(layer_from_top, build_parameters, &mut progress)
             }
         }
     }

@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::{parameters::BuildParameters, types::VectorId, Comparator, Hnsw};
+use crate::{
+    parameters::BuildParameters, progress::SimpleProgressMonitor, types::VectorId, Comparator, Hnsw,
+};
 
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rand_distr::Uniform;
@@ -31,7 +33,8 @@ pub fn make_random_hnsw_with_build_parameters(
         data: Arc::new(data),
     };
     let vs: Vec<_> = (0..count).map(VectorId).collect();
-    let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+    let hnsw: Hnsw<BigComparator> =
+        Hnsw::generate(c, vs, bp, &mut SimpleProgressMonitor::default());
     hnsw
 }
 

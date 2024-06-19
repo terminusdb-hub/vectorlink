@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, collections::HashMap};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -24,20 +24,39 @@ pub trait ProgressMonitor: Send {
     fn alive(&mut self) -> Result<(), Interrupt>;
     fn update(&mut self, update: ProgressUpdate) -> Result<(), Interrupt>;
     fn centroid_update(&mut self, update: ProgressUpdate) -> Result<(), Interrupt>;
-    fn layer_statistics(
+    fn get_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt>;
+    fn set_layer_statistics(
         &mut self,
         layer_from_top: usize,
         statistics: LayerStatistics,
     ) -> Result<(), Interrupt>;
-    fn centroid_layer_statistics(
+    fn invalidate_layer_statistics(&mut self, layer_from_top: usize) -> Result<(), Interrupt>;
+    fn get_centroid_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt>;
+    fn set_centroid_layer_statistics(
         &mut self,
         layer_from_top: usize,
         statistics: LayerStatistics,
+    ) -> Result<(), Interrupt>;
+    fn invalidate_centroid_layer_statistics(
+        &mut self,
+        layer_from_top: usize,
     ) -> Result<(), Interrupt>;
     fn keep_alive(&mut self) -> Box<dyn Any>;
 }
 
-impl ProgressMonitor for () {
+#[derive(Default)]
+pub struct SimpleProgressMonitor {
+    layer_statistics: HashMap<usize, LayerStatistics>,
+    centroid_layer_statistics: HashMap<usize, LayerStatistics>,
+}
+
+impl ProgressMonitor for SimpleProgressMonitor {
     fn alive(&mut self) -> Result<(), Interrupt> {
         Ok(())
     }
@@ -53,19 +72,48 @@ impl ProgressMonitor for () {
         Box::new(())
     }
 
-    fn layer_statistics(
+    fn set_layer_statistics(
         &mut self,
-        _layer: usize,
-        _statistics: LayerStatistics,
+        layer: usize,
+        statistics: LayerStatistics,
     ) -> Result<(), Interrupt> {
+        self.layer_statistics.insert(layer, statistics);
         Ok(())
     }
 
-    fn centroid_layer_statistics(
+    fn set_centroid_layer_statistics(
         &mut self,
-        _layer: usize,
-        _statistics: LayerStatistics,
+        layer: usize,
+        statistics: LayerStatistics,
     ) -> Result<(), Interrupt> {
+        self.centroid_layer_statistics.insert(layer, statistics);
+        Ok(())
+    }
+
+    fn get_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        Ok(self.layer_statistics.get(&layer_from_top).copied())
+    }
+
+    fn invalidate_layer_statistics(&mut self, layer_from_top: usize) -> Result<(), Interrupt> {
+        self.layer_statistics.remove(&layer_from_top);
+        Ok(())
+    }
+
+    fn get_centroid_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        Ok(self.centroid_layer_statistics.get(&layer_from_top).copied())
+    }
+
+    fn invalidate_centroid_layer_statistics(
+        &mut self,
+        layer_from_top: usize,
+    ) -> Result<(), Interrupt> {
+        self.centroid_layer_statistics.remove(&layer_from_top);
         Ok(())
     }
 }
@@ -86,20 +134,45 @@ impl ProgressMonitor for Box<dyn ProgressMonitor> {
         (**self).keep_alive()
     }
 
-    fn layer_statistics(
+    fn set_layer_statistics(
         &mut self,
         layer: usize,
         statistics: LayerStatistics,
     ) -> Result<(), Interrupt> {
-        (**self).layer_statistics(layer, statistics)
+        (**self).set_layer_statistics(layer, statistics)
     }
 
-    fn centroid_layer_statistics(
+    fn set_centroid_layer_statistics(
         &mut self,
         layer: usize,
         statistics: LayerStatistics,
     ) -> Result<(), Interrupt> {
-        (**self).layer_statistics(layer, statistics)
+        (**self).set_layer_statistics(layer, statistics)
+    }
+
+    fn get_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        (**self).get_layer_statistics(layer_from_top)
+    }
+
+    fn invalidate_layer_statistics(&mut self, layer_from_top: usize) -> Result<(), Interrupt> {
+        (**self).invalidate_layer_statistics(layer_from_top)
+    }
+
+    fn get_centroid_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        (**self).get_centroid_layer_statistics(layer_from_top)
+    }
+
+    fn invalidate_centroid_layer_statistics(
+        &mut self,
+        layer_from_top: usize,
+    ) -> Result<(), Interrupt> {
+        (**self).invalidate_centroid_layer_statistics(layer_from_top)
     }
 }
 
@@ -126,25 +199,51 @@ impl<'a> ProgressMonitor for PqProgressMonitor<'a> {
         panic!("called centroid_update on the PqProgressMonitor");
     }
 
-    fn layer_statistics(
+    fn set_layer_statistics(
         &mut self,
         layer_from_top: usize,
         statistics: LayerStatistics,
     ) -> Result<(), Interrupt> {
         self.inner
-            .centroid_layer_statistics(layer_from_top, statistics)
+            .set_centroid_layer_statistics(layer_from_top, statistics)
     }
 
-    fn centroid_layer_statistics(
+    fn set_centroid_layer_statistics(
         &mut self,
         _layer_from_top: usize,
         _statistics: LayerStatistics,
     ) -> Result<(), Interrupt> {
-        panic!("called centroid_layer_statistics on the PqProgressMonitor");
+        panic!("called set_centroid_layer_statistics on the PqProgressMonitor");
     }
 
     fn keep_alive(&mut self) -> Box<dyn Any> {
         self.inner.keep_alive()
+    }
+
+    fn get_layer_statistics(
+        &self,
+        layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        self.inner.get_centroid_layer_statistics(layer_from_top)
+    }
+
+    fn invalidate_layer_statistics(&mut self, layer_from_top: usize) -> Result<(), Interrupt> {
+        self.inner
+            .invalidate_centroid_layer_statistics(layer_from_top)
+    }
+
+    fn get_centroid_layer_statistics(
+        &self,
+        _layer_from_top: usize,
+    ) -> Result<Option<LayerStatistics>, Interrupt> {
+        panic!("called get_centroid_layer_statistics on the PqProgressMonitor");
+    }
+
+    fn invalidate_centroid_layer_statistics(
+        &mut self,
+        _layer_from_top: usize,
+    ) -> Result<(), Interrupt> {
+        panic!("called invalidate_centroid_layer_statistics on the PqProgressMonitor");
     }
 }
 
