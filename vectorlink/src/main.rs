@@ -580,7 +580,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             build_parameters.optimization.promotion_proportion = promotion_proportion;
             build_parameters.optimization.neighborhood_threshold = neighbor_threshold;
             build_parameters.optimization.recall_proportion = recall_proportion;
-            hnsw.improve_index(build_parameters, None, &mut ());
+            hnsw.improve_index(build_parameters, &mut ());
 
             // TODO should write to staging first
             hnsw.serialize(hnsw_index_path)?;

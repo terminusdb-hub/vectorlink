@@ -193,27 +193,26 @@ impl HnswConfiguration {
     pub fn improve_index(
         &mut self,
         build_parameters: BuildParameters,
-        last_recall: Option<f32>,
         progress: &mut dyn ProgressMonitor,
     ) -> f32 {
         match self {
             HnswConfiguration::QuantizedOpenAi(_model, q) => {
-                q.improve_index(build_parameters, last_recall, progress)
+                q.improve_index(build_parameters, progress)
             }
             HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
-                q.improve_index(build_parameters, last_recall, progress)
+                q.improve_index(build_parameters, progress)
             }
             HnswConfiguration::UnquantizedOpenAi(_model, h) => {
-                h.improve_index(build_parameters, last_recall, progress)
+                h.improve_index(build_parameters, progress)
             }
             HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
-                q.improve_index(build_parameters, last_recall, progress)
+                q.improve_index(build_parameters, progress)
             }
             HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
-                q.improve_index(build_parameters, last_recall, progress)
+                q.improve_index(build_parameters, progress)
             }
             HnswConfiguration::Quantized1024By16(_, q) => {
-                q.improve_index(build_parameters, last_recall, progress)
+                q.improve_index(build_parameters, progress)
             }
         }
     }
