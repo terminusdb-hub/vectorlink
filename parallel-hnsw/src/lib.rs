@@ -929,7 +929,10 @@ impl<C: Comparator + 'static> Hnsw<C> {
                 .unwrap();
             eprintln!("linking to better neighbors (during construction)");
             let old_layer_count = hnsw.layer_count();
-            hnsw.improve_index(bp, None, progress);
+            if i < partitions.len() - 1 {
+                hnsw.improve_index_at(i, bp, None, progress);
+            }
+
             let new_layer_count = hnsw.layer_count();
             let delta = new_layer_count - old_layer_count;
             if delta > 0 {
@@ -1754,11 +1757,10 @@ impl<C: Comparator + 'static> Hnsw<C> {
     pub fn improve_index(
         &mut self,
         bp: BuildParameters,
-        last_recall: Option<f32>,
         progress: &mut dyn ProgressMonitor,
     ) -> f32 {
         // let's start with a neighborhood optimization so we don't overpromote
-        let mut recall = last_recall.unwrap_or_else(|| self.stochastic_recall(bp.optimization));
+        let mut recall = 0.0;
 
         let mut layer_from_top = 0;
         while layer_from_top < self.layer_count() {

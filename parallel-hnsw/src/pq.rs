@@ -313,7 +313,7 @@ impl<
             bp.centroids,
             &mut PqProgressMonitor::wrap(progress),
         );
-        centroid_hnsw.improve_index(bp.centroids, None, progress);
+        centroid_hnsw.improve_index(bp.centroids, progress);
 
         let centroid_quantizer: HnswQuantizer<
             SIZE,
@@ -383,10 +383,9 @@ impl<
     pub fn improve_index(
         &mut self,
         bp: BuildParameters,
-        last_recall: Option<f32>,
         progress: &mut dyn ProgressMonitor,
     ) -> f32 {
-        self.hnsw.improve_index(bp, last_recall, progress)
+        self.hnsw.improve_index(bp, progress)
     }
 
     pub fn improve_neighbors(
@@ -1091,7 +1090,7 @@ mod tests {
         let bp = PqBuildParameters::default();
         let mut centroid_hnsw: Hnsw<CentroidComparator16> =
             Hnsw::generate(centroid_comparator, vector_ids, bp.centroids, &mut ());
-        let recall = centroid_hnsw.improve_index(bp.centroids, None, &mut ());
+        let recall = centroid_hnsw.improve_index(bp.centroids, &mut ());
         assert!(recall > 0.99);
     }
 
