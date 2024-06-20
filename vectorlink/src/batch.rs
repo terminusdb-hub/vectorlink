@@ -406,6 +406,7 @@ pub fn index_domain<P: AsRef<Path>>(
     let mut staging_path: PathBuf = vectorlink_path.as_ref().into();
     staging_path.push(".staging");
     staging_path.push(&*encode(domain));
+    staging_path.push(&*encode(commit));
     std::fs::create_dir_all(&staging_path)?;
 
     let vs_path_buf: PathBuf = vectorlink_path.as_ref().into();
