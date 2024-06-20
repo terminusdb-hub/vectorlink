@@ -32,6 +32,8 @@ use configuration::HnswConfiguration;
 use openai::Model;
 use parallel_hnsw::parameters::OptimizationParameters;
 use parallel_hnsw::parameters::SearchParameters;
+use parallel_hnsw::progress::ProgressMonitor;
+use parallel_hnsw::progress::SimpleProgressMonitor;
 use parallel_hnsw::AbstractVector;
 use parallel_hnsw::Serializable;
 use rand::prelude::*;
@@ -447,7 +449,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 size,
                 build_index.unwrap_or(true),
                 quantize_hnsw,
-                &mut (),
+                &mut SimpleProgressMonitor::default(),
             )
             .await
             .unwrap()
@@ -471,7 +473,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 &commit,
                 size,
                 quantize_hnsw,
-                &mut (),
+                &mut SimpleProgressMonitor::default(),
             )
             .unwrap()
         }
@@ -580,7 +582,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             build_parameters.optimization.promotion_proportion = promotion_proportion;
             build_parameters.optimization.neighborhood_threshold = neighbor_threshold;
             build_parameters.optimization.recall_proportion = recall_proportion;
-            hnsw.improve_index(build_parameters, &mut ());
+            hnsw.improve_index(build_parameters, &mut SimpleProgressMonitor::default());
 
             // TODO should write to staging first
             hnsw.serialize(hnsw_index_path)?;

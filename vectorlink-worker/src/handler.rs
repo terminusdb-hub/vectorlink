@@ -1,22 +1,36 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use parallel_hnsw::parameters::OptimizationParameters;
+use parallel_hnsw::Serializable;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::task::block_in_place;
-use vectorlink::batch::index_domain;
 use vectorlink::openai::Model;
+use vectorlink::vectors::VectorStore;
+use vectorlink::{batch::index_domain, configuration::HnswConfiguration};
 use vectorlink_task::task::{SyncTaskLiveness, TaskHandler, TaskLiveness};
 
 use parallel_hnsw::progress::{Interrupt, LayerStatistics, ProgressMonitor};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct BuildIndexRequest {
+pub struct IndexingRequest {
     domain: String,
     commit: String,
     directory: String,
     model: Model,
     quantized: bool,
+    operation: IndexOperation,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum IndexOperation {
+    BuildIndex,
+    ImproveIndex {
+        optimization_parameters: Option<OptimizationParameters>,
+    },
 }
 
 // progress is just a json value for now
@@ -40,12 +54,12 @@ pub struct IndexProgress {
 
 #[async_trait]
 impl TaskHandler for VectorlinkTaskHandler {
-    type Init = BuildIndexRequest;
+    type Init = IndexingRequest;
 
     // TODO: actual progress should not be an arbitrary json object but a meaningful serializable state object.
     type Progress = IndexProgress;
 
-    type Complete = BuildIndexCompletion;
+    type Complete = ();
 
     type Error = String;
 
@@ -63,38 +77,52 @@ impl TaskHandler for VectorlinkTaskHandler {
         live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Complete, Self::Error> {
         let key = "fake";
-        let request: BuildIndexRequest = live.init().unwrap().unwrap();
-        let BuildIndexRequest {
+        let request: IndexingRequest = live.init().unwrap().unwrap();
+        let IndexingRequest {
             model,
             directory,
             domain,
             commit,
             quantized,
-            ..
+            operation,
         } = request;
         let _state = live.progress().unwrap();
         let live = live.into_sync().unwrap();
-        let mut monitor = TaskMonitor(live);
-        block_in_place(|| {
-            index_domain(
-                &key,
-                model,
-                directory,
-                &domain,
-                &commit,
-                12345,
-                quantized,
-                &mut monitor,
-            )
-        })
-        .unwrap();
 
-        // TODO: this should obviously not be a fake value
-        Ok(BuildIndexCompletion { recall: 0.5 })
+        let mut monitor = TaskMonitor(live);
+        block_in_place(|| match operation {
+            IndexOperation::BuildIndex => {
+                index_domain(
+                    key,
+                    model,
+                    directory,
+                    &domain,
+                    &commit,
+                    12345,
+                    quantized,
+                    &mut monitor,
+                )
+                .unwrap();
+            }
+            IndexOperation::ImproveIndex {
+                optimization_parameters,
+            } => {
+                let store = VectorStore::new(&directory, 12345);
+                let mut hnsw: HnswConfiguration =
+                    HnswConfiguration::deserialize(&directory, Arc::new(store)).unwrap();
+                let mut build_parameters = hnsw.build_parameters_for_improve_index();
+                if let Some(optimization_parameters) = optimization_parameters {
+                    build_parameters.optimization = optimization_parameters;
+                }
+                hnsw.improve_index(build_parameters, &mut monitor);
+            }
+        });
+
+        Ok(())
     }
 }
 
-struct TaskMonitor(SyncTaskLiveness<BuildIndexRequest, IndexProgress>);
+struct TaskMonitor(SyncTaskLiveness<IndexingRequest, IndexProgress>);
 
 impl ProgressMonitor for TaskMonitor {
     fn update(
@@ -192,5 +220,23 @@ impl ProgressMonitor for TaskMonitor {
         let mut progress = progress.unwrap().clone();
         progress.centroid_statistics.remove(&layer_from_top);
         self.0.set_progress(progress).map_err(|_| Interrupt)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::handler::IndexOperation;
+
+    #[test]
+    fn serialization_test() {
+        let io = IndexOperation::ImproveIndex {
+            optimization_parameters: None,
+        };
+        let s1 = serde_json::to_string(&io).unwrap();
+
+        let bi = IndexOperation::BuildIndex;
+        let s2 = serde_json::to_string(&bi).unwrap();
+
+        panic!("{}", s2);
     }
 }

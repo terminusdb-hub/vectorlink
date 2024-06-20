@@ -388,6 +388,15 @@ impl<
         self.hnsw.improve_index(bp, progress)
     }
 
+    pub fn improve_index_at(
+        &mut self,
+        layer: usize,
+        bp: BuildParameters,
+        progress: &mut dyn ProgressMonitor,
+    ) -> (f32, usize) {
+        self.hnsw.improve_index_at(layer, bp, progress)
+    }
+
     pub fn improve_neighbors(
         &mut self,
         op: OptimizationParameters,

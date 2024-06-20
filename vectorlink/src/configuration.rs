@@ -217,6 +217,34 @@ impl HnswConfiguration {
         }
     }
 
+    pub fn improve_index_at(
+        &mut self,
+        layer: usize,
+        build_parameters: BuildParameters,
+        progress: &mut dyn ProgressMonitor,
+    ) -> (f32, usize) {
+        match self {
+            HnswConfiguration::QuantizedOpenAi(_model, q) => {
+                q.improve_index_at(layer, build_parameters, progress)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi(_model, q) => {
+                q.improve_index_at(layer, build_parameters, progress)
+            }
+            HnswConfiguration::UnquantizedOpenAi(_model, h) => {
+                h.improve_index_at(layer, build_parameters, progress)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => {
+                q.improve_index_at(layer, build_parameters, progress)
+            }
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => {
+                q.improve_index_at(layer, build_parameters, progress)
+            }
+            HnswConfiguration::Quantized1024By16(_, q) => {
+                q.improve_index_at(layer, build_parameters, progress)
+            }
+        }
+    }
+
     pub fn improve_neighbors(
         &mut self,
         optimization_parameters: OptimizationParameters,

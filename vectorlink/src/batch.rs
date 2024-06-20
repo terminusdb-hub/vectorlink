@@ -259,6 +259,7 @@ pub async fn index_using_operations_and_vectors<
             }
         }
     }
+    assert_eq!(offset, 0);
     perform_indexing(
         domain_obj,
         offset,
@@ -273,23 +274,14 @@ pub async fn index_using_operations_and_vectors<
 
 fn perform_indexing(
     domain_obj: Arc<Domain>,
-    offset: u64,
-    count: usize,
+    _offset: u64,
+    _count: usize,
     quantize_hnsw: bool,
     model: Model,
     staging_file: PathBuf,
     final_file: PathBuf,
     progress: &mut dyn ProgressMonitor,
 ) -> Result<(), IndexingError> {
-    // NOTE: This also needs to know the type!
-    let comparator = Disk1024Comparator::new(
-        domain_obj.name().to_string(),
-        Arc::new(domain_obj.file().as_immutable().into_sized()),
-    );
-    let vecs: Vec<_> = (offset as usize..(offset as usize + count))
-        .map(VectorId)
-        .collect();
-
     progress.alive().unwrap();
     eprintln!("ready to generate hnsw");
     // NOTE: This should be a switch over the configurations
