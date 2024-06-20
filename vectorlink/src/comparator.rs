@@ -218,6 +218,10 @@ impl pq::VectorSelector for Disk1024Comparator {
             .unwrap()
             .map(|x| x.unwrap())
     }
+
+    fn count(&self) -> usize {
+        self.vectors.num_vecs()
+    }
 }
 
 #[derive(Clone)]

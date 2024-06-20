@@ -134,6 +134,7 @@ pub trait VectorSelector {
     type T;
     fn selection(&self, size: usize) -> Vec<Self::T>;
     fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>>;
+    fn count(&self) -> usize;
 }
 
 pub trait VectorStore {
@@ -284,37 +285,16 @@ impl<
         centroid_candidates
     }
 
-    pub fn new(
-        number_of_centroids: usize,
+    pub fn construct_centroids(
         comparator: FullComparator,
         bp: PqBuildParameters,
+        centroid_hnsw: Hnsw<CentroidComparator>,
+        mut quantized_comparator: QuantizedComparator,
         progress: &mut dyn ProgressMonitor,
-    ) -> Self {
-        //let centroids =
-        //    Self::kmeans_centroids(number_of_centroids, 1 * number_of_centroids, &comparator);
-        progress
-            .update(ProgressUpdate {
-                state: json!({"type":"pq"}),
-            })
-            .unwrap();
-
-        let centroids = keepalive!(
-            progress,
-            Self::random_centroids(number_of_centroids, &comparator)
-        );
-        eprintln!("Number of centroids: {}", centroids.len());
-
-        let vector_ids = (0..centroids.len()).map(VectorId).collect();
-        let centroid_comparator = keepalive!(progress, CentroidComparator::new(centroids));
-        let mut quantized_comparator = QuantizedComparator::new(&centroid_comparator);
-        let mut centroid_hnsw: Hnsw<CentroidComparator> = Hnsw::generate(
-            centroid_comparator,
-            vector_ids,
-            bp.centroids,
-            &mut PqProgressMonitor::wrap(progress),
-        );
-        centroid_hnsw.improve_index(bp.centroids, progress);
-
+    ) -> (
+        Vec<VectorId>,
+        HnswQuantizer<SIZE, CENTROID_SIZE, QUANTIZED_SIZE, CentroidComparator>,
+    ) {
         let centroid_quantizer: HnswQuantizer<
             SIZE,
             CENTROID_SIZE,
@@ -325,8 +305,8 @@ impl<
             pq_build_parameters: bp,
         };
         let mut vids: Vec<VectorId> = Vec::new();
-        eprintln!("quantizing");
         let mut iter = comparator.vector_chunks();
+        eprintln!("quantizing");
         loop {
             let chunk = keepalive!(progress, iter.next());
             if chunk.is_none() {
@@ -350,6 +330,17 @@ impl<
         }
         std::mem::drop(iter);
 
+        (vids, centroid_quantizer)
+    }
+
+    pub fn new_with_centroid_quantizer(
+        comparator: FullComparator,
+        bp: PqBuildParameters,
+        vids: Vec<VectorId>,
+        centroid_quantizer: HnswQuantizer<SIZE, CENTROID_SIZE, QUANTIZED_SIZE, CentroidComparator>,
+        quantized_comparator: QuantizedComparator,
+        progress: &mut dyn ProgressMonitor,
+    ) -> Self {
         eprintln!("generating");
         let hnsw: Hnsw<QuantizedComparator> =
             Hnsw::generate(quantized_comparator, vids, bp.hnsw, progress);
@@ -358,6 +349,70 @@ impl<
             hnsw,
             comparator,
         }
+    }
+
+    pub fn generate_centroid_hnsw(
+        comparator: FullComparator,
+        number_of_centroids: usize,
+        bp: BuildParameters,
+        progress: &mut dyn ProgressMonitor,
+    ) -> (Hnsw<CentroidComparator>, QuantizedComparator) {
+        let centroids = keepalive!(
+            progress,
+            Self::random_centroids(number_of_centroids, &comparator)
+        );
+        eprintln!("Number of centroids: {}", centroids.len());
+
+        let vector_ids = (0..centroids.len()).map(VectorId).collect();
+        let centroid_comparator = keepalive!(progress, CentroidComparator::new(centroids));
+        let quantized_comparator = QuantizedComparator::new(&centroid_comparator);
+        let mut centroid_hnsw: Hnsw<CentroidComparator> = Hnsw::generate(
+            centroid_comparator,
+            vector_ids,
+            bp,
+            &mut PqProgressMonitor::wrap(progress),
+        );
+        centroid_hnsw.improve_index(bp, progress);
+        (centroid_hnsw, quantized_comparator)
+    }
+
+    pub fn new(
+        number_of_centroids: usize,
+        comparator: FullComparator,
+        bp: PqBuildParameters,
+        progress: &mut dyn ProgressMonitor,
+    ) -> Self {
+        //let centroids =
+        //    Self::kmeans_centroids(number_of_centroids, 1 * number_of_centroids, &comparator);
+        progress
+            .update(ProgressUpdate {
+                state: json!({"type":"pq"}),
+            })
+            .unwrap();
+
+        let (centroid_hnsw, quantized_comparator) = Self::generate_centroid_hnsw(
+            comparator.clone(),
+            number_of_centroids,
+            bp.centroids,
+            progress,
+        );
+
+        let (vids, centroid_quantizer) = Self::construct_centroids(
+            comparator.clone(),
+            bp,
+            centroid_hnsw,
+            quantized_comparator.clone(),
+            progress,
+        );
+
+        Self::new_with_centroid_quantizer(
+            comparator,
+            bp,
+            vids,
+            centroid_quantizer,
+            quantized_comparator,
+            progress,
+        )
     }
 
     pub fn search(

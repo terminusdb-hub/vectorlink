@@ -9,6 +9,7 @@ use std::{
 use futures::{future, Stream, StreamExt, TryStreamExt};
 use parallel_hnsw::{
     parameters::{BuildParameters, PqBuildParameters},
+    pq::HnswQuantizer,
     Serializable,
 };
 use parallel_hnsw::{pq::QuantizedHnsw, progress::ProgressMonitor, SerializationError};
@@ -23,9 +24,9 @@ use urlencoding::encode;
 
 use crate::{
     comparator::{
-        Centroid16Comparator, Centroid16Comparator1024, Centroid8Comparator, Disk1024Comparator,
-        DiskOpenAIComparator, OpenAIComparator, Quantized16Comparator, Quantized16Comparator1024,
-        Quantized8Comparator,
+        ArrayCentroidComparator, Centroid16Comparator, Centroid16Comparator1024,
+        Centroid8Comparator, Disk1024Comparator, DiskOpenAIComparator, OpenAIComparator,
+        Quantized16Comparator, Quantized16Comparator1024, Quantized8Comparator,
     },
     configuration::HnswConfiguration,
     domain::Domain,
@@ -33,9 +34,9 @@ use crate::{
     openai::{embeddings_for, EmbeddingError, Model},
     server::Operation,
     vecmath::{
-        Embedding, CENTROID_16_LENGTH, CENTROID_8_LENGTH, EMBEDDING_LENGTH, EMBEDDING_LENGTH_1024,
-        QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH_1024,
-        QUANTIZED_8_EMBEDDING_LENGTH,
+        Embedding, EuclideanDistance16For1024, CENTROID_16_LENGTH, CENTROID_8_LENGTH,
+        EMBEDDING_LENGTH, EMBEDDING_LENGTH_1024, QUANTIZED_16_EMBEDDING_LENGTH,
+        QUANTIZED_16_EMBEDDING_LENGTH_1024, QUANTIZED_8_EMBEDDING_LENGTH,
     },
     vectors::VectorStore,
 };
@@ -275,7 +276,7 @@ pub async fn index_using_operations_and_vectors<
 fn perform_indexing(
     domain_obj: Arc<Domain>,
     _offset: u64,
-    _count: usize,
+    count: usize,
     quantize_hnsw: bool,
     model: Model,
     staging_file: PathBuf,
@@ -288,11 +289,57 @@ fn perform_indexing(
     // defined in HnswConfiguration
     let hnsw = if quantize_hnsw {
         let number_of_centroids = 65_535;
-        let c = Disk1024Comparator::new(
+        let comparator = Disk1024Comparator::new(
             domain_obj.name().to_owned(),
             Arc::new(domain_obj.immutable_file().into_sized()),
         );
         let pq_build_parameters = PqBuildParameters::default();
+
+        let quantizer_path = staging_file.join("quantizer");
+
+        let centroid_quantizer = HnswQuantizer::<
+            EMBEDDING_LENGTH_1024,
+            CENTROID_16_LENGTH,
+            QUANTIZED_16_EMBEDDING_LENGTH_1024,
+            Centroid16Comparator1024,
+        >::deserialize(quantizer_path, ());
+
+        let (vids, centroid_quantizer) = match centroid_quantizer {
+            Ok(centroid_quantizer) => (comparator.count().map(VectorId), centroid_quantizer),
+            Err(_) => {
+                let (centroid_hnsw, quantized_comparator) = QuantizedHnsw::<
+                    EMBEDDING_LENGTH_1024,
+                    CENTROID_16_LENGTH,
+                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                    Centroid16Comparator1024,
+                    Quantized16Comparator1024,
+                    Disk1024Comparator,
+                >::generate_centroid_hnsw(
+                    comparator.clone(),
+                    number_of_centroids,
+                    pq_build_parameters.centroids,
+                    progress,
+                );
+
+                let (vids, centroid_quantizer) = QuantizedHnsw::<
+                    EMBEDDING_LENGTH_1024,
+                    CENTROID_16_LENGTH,
+                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                    Centroid16Comparator1024,
+                    Quantized16Comparator1024,
+                    Disk1024Comparator,
+                >::construct_centroids(
+                    comparator.clone(),
+                    pq_build_parameters,
+                    centroid_hnsw,
+                    quantized_comparator.clone(),
+                    progress,
+                );
+            }
+        };
+
+        centroid_quantizer.serialize(quantizer_path)?;
+
         let quantized_hnsw: QuantizedHnsw<
             EMBEDDING_LENGTH_1024,
             CENTROID_16_LENGTH,
@@ -300,7 +347,14 @@ fn perform_indexing(
             Centroid16Comparator1024,
             Quantized16Comparator1024,
             Disk1024Comparator,
-        > = QuantizedHnsw::new(number_of_centroids, c, pq_build_parameters, progress);
+        > = QuantizedHnsw::new_with_centroid_quantizer(
+            comparator,
+            pq_build_parameters,
+            vids,
+            centroid_quantizer,
+            quantized_comparator,
+            progress,
+        );
         HnswConfiguration::Quantized1024By16(model, quantized_hnsw)
     } else {
         // Currently not implemented
@@ -313,7 +367,7 @@ fn perform_indexing(
     };
     eprintln!("done generating hnsw");
     hnsw.serialize(&staging_file)?;
-    eprintln!("done serializing hnsw");
+    eprintln!("done serializing hnwsca");
     eprintln!("renaming {staging_file:?} to {final_file:?}");
     std::fs::rename(&staging_file, &final_file)?;
     eprintln!("renamed hnsw");
