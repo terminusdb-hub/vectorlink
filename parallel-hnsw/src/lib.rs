@@ -1654,7 +1654,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
             while current_layer_from_top <= layer_from_top && bailout != 0 {
                 let layer_count = self.layer_count();
                 eprintln!("improve_index_at is going to call improve_neighbors_upto");
-                self.improve_neighborhoods_at_layer(current_layer_from_top + 1, op.search);
+                self.improve_neighborhoods_at_layer(current_layer_from_top, op.search);
 
                 recall = self.stochastic_recall_at(current_layer_from_top, op);
                 statistics.recall = Some(recall);
