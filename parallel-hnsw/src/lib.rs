@@ -1668,10 +1668,13 @@ impl<C: Comparator + 'static> Hnsw<C> {
                 }
 
                 eprintln!("About to promote");
-                // NOTE: promotions MUST invalidate layer statistics!
                 if self.promote_at_layer(current_layer_from_top, bp, progress) {
                     let new_layer_count = self.layer_count();
                     eprintln!("New layer count: {new_layer_count}, old layer count: {layer_count}");
+                    for i in 0..new_layer_count {
+                        progress.invalidate_layer_statistics(i).unwrap();
+                    }
+
                     let layer_delta = new_layer_count - layer_count;
                     assert!(new_layer_count >= layer_count);
                     eprintln!("We did promote!  With layer delta: {layer_delta}");
