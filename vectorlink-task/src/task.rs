@@ -448,7 +448,7 @@ where
     ) -> Result<Self::Complete, Self::Error>;
 
     fn start_prometheus_exporter() -> () {
-        let binding = "127.0.0.1:9184".parse().unwrap();
+        let binding = "127.0.0.1:9002".parse().unwrap();
         prometheus_exporter::start(binding).unwrap();
     }
 
