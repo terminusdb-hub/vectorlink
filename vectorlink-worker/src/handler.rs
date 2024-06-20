@@ -30,6 +30,12 @@ pub enum IndexOperation {
     BuildIndex,
     ImproveIndex {
         optimization_parameters: Option<OptimizationParameters>,
+        statistics: HashMap<usize, LayerStatistics>,
+    },
+    ImproveIndexAt {
+        layer: usize,
+        optimization_parameters: Option<OptimizationParameters>,
+        statistics: HashMap<usize, LayerStatistics>,
     },
 }
 
@@ -64,11 +70,17 @@ impl TaskHandler for VectorlinkTaskHandler {
     type Error = String;
 
     async fn initialize(
-        _live: TaskLiveness<Self::Init, Self::Progress>,
+        live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Progress, Self::Error> {
+        let init = live.init().unwrap().unwrap();
+        let statistics = match init.operation {
+            IndexOperation::BuildIndex => HashMap::new(),
+            IndexOperation::ImproveIndex { statistics, .. } => statistics,
+            IndexOperation::ImproveIndexAt { statistics, .. } => statistics,
+        };
         Ok(IndexProgress {
             state: json!({}),
-            statistics: HashMap::new(),
+            statistics,
             centroid_state: None,
             centroid_statistics: HashMap::new(),
         })
@@ -105,6 +117,7 @@ impl TaskHandler for VectorlinkTaskHandler {
                 .unwrap();
             }
             IndexOperation::ImproveIndex {
+                statistics: _,
                 optimization_parameters,
             } => {
                 let store = VectorStore::new(&directory, 12345);
@@ -115,6 +128,20 @@ impl TaskHandler for VectorlinkTaskHandler {
                     build_parameters.optimization = optimization_parameters;
                 }
                 hnsw.improve_index(build_parameters, &mut monitor);
+            }
+            IndexOperation::ImproveIndexAt {
+                layer,
+                statistics: _,
+                optimization_parameters,
+            } => {
+                let store = VectorStore::new(&directory, 12345);
+                let mut hnsw: HnswConfiguration =
+                    HnswConfiguration::deserialize(&directory, Arc::new(store)).unwrap();
+                let mut build_parameters = hnsw.build_parameters_for_improve_index();
+                if let Some(optimization_parameters) = optimization_parameters {
+                    build_parameters.optimization = optimization_parameters;
+                }
+                hnsw.improve_index_at(layer, build_parameters, &mut monitor);
             }
         });
 
