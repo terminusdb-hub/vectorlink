@@ -851,7 +851,7 @@ impl Serializable for Quantized16Comparator1024 {
 
         let vector_path = path_buf.join("vectors");
         let mut vector_file =
-            VectorFile::create_size::<_, Quantized16Embedding>(vector_path, true)?;
+            VectorFile::create_size::<_, Quantized16Embedding1024>(vector_path, true)?;
         vector_file
             .as_sized_mut()
             .append_vector_range(self.data.vecs())?;
@@ -862,7 +862,7 @@ impl Serializable for Quantized16Comparator1024 {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let vector_file = VectorFile::open_size::<_, Quantized16Embedding1024>(vector_path, true)?;
         let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
