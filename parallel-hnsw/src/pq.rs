@@ -134,7 +134,7 @@ pub trait VectorSelector {
     type T;
     fn selection(&self, size: usize) -> Vec<Self::T>;
     fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>>;
-    fn count(&self) -> usize;
+    fn num_vecs(&self) -> usize;
 }
 
 pub trait VectorStore {
@@ -285,25 +285,15 @@ impl<
         centroid_candidates
     }
 
-    pub fn construct_centroids(
+    pub fn perform_quantization(
         comparator: FullComparator,
-        bp: PqBuildParameters,
-        centroid_hnsw: Hnsw<CentroidComparator>,
+        centroid_quantizer: HnswQuantizer<SIZE, CENTROID_SIZE, QUANTIZED_SIZE, CentroidComparator>,
         mut quantized_comparator: QuantizedComparator,
         progress: &mut dyn ProgressMonitor,
     ) -> (
         Vec<VectorId>,
         HnswQuantizer<SIZE, CENTROID_SIZE, QUANTIZED_SIZE, CentroidComparator>,
     ) {
-        let centroid_quantizer: HnswQuantizer<
-            SIZE,
-            CENTROID_SIZE,
-            QUANTIZED_SIZE,
-            CentroidComparator,
-        > = HnswQuantizer {
-            hnsw: centroid_hnsw,
-            pq_build_parameters: bp,
-        };
         let mut vids: Vec<VectorId> = Vec::new();
         let mut iter = comparator.vector_chunks();
         eprintln!("quantizing");
@@ -333,7 +323,7 @@ impl<
         (vids, centroid_quantizer)
     }
 
-    pub fn new_with_centroid_quantizer(
+    pub fn new_with_quantized_vectors(
         comparator: FullComparator,
         bp: PqBuildParameters,
         vids: Vec<VectorId>,
@@ -397,15 +387,24 @@ impl<
             progress,
         );
 
-        let (vids, centroid_quantizer) = Self::construct_centroids(
+        let centroid_quantizer: HnswQuantizer<
+            SIZE,
+            CENTROID_SIZE,
+            QUANTIZED_SIZE,
+            CentroidComparator,
+        > = HnswQuantizer {
+            hnsw: centroid_hnsw,
+            pq_build_parameters: bp,
+        };
+
+        let (vids, centroid_quantizer) = Self::perform_quantization(
             comparator.clone(),
-            bp,
-            centroid_hnsw,
+            centroid_quantizer,
             quantized_comparator.clone(),
             progress,
         );
 
-        Self::new_with_centroid_quantizer(
+        Self::new_with_quantized_vectors(
             comparator,
             bp,
             vids,

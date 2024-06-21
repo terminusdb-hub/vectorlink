@@ -127,6 +127,10 @@ impl pq::VectorSelector for DiskOpenAIComparator {
             .unwrap()
             .map(|x| x.unwrap())
     }
+
+    fn num_vecs(&self) -> usize {
+        self.vectors.num_vecs()
+    }
 }
 
 #[derive(Clone)]
@@ -219,7 +223,7 @@ impl pq::VectorSelector for Disk1024Comparator {
             .map(|x| x.unwrap())
     }
 
-    fn count(&self) -> usize {
+    fn num_vecs(&self) -> usize {
         self.vectors.num_vecs()
     }
 }
@@ -907,6 +911,10 @@ impl pq::VectorSelector for OpenAIComparator {
     fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>> {
         // low quality make better
         self.range.vecs().chunks(1_000_000).map(|c| c.to_vec())
+    }
+
+    fn num_vecs(&self) -> usize {
+        self.range.vecs().len()
     }
 }
 

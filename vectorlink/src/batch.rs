@@ -40,6 +40,7 @@ use crate::{
     },
     vectors::VectorStore,
 };
+use parallel_hnsw::pq::VectorSelector;
 
 #[derive(Error, Debug)]
 pub enum BatchError {
@@ -289,6 +290,7 @@ fn perform_indexing(
     // defined in HnswConfiguration
     let hnsw = if quantize_hnsw {
         let number_of_centroids = 65_535;
+
         let comparator = Disk1024Comparator::new(
             domain_obj.name().to_owned(),
             Arc::new(domain_obj.immutable_file().into_sized()),
@@ -296,17 +298,28 @@ fn perform_indexing(
         let pq_build_parameters = PqBuildParameters::default();
 
         let quantizer_path = staging_file.join("quantizer");
-
-        let centroid_quantizer = HnswQuantizer::<
+        let centroid_quantizer_result = HnswQuantizer::<
             EMBEDDING_LENGTH_1024,
             CENTROID_16_LENGTH,
             QUANTIZED_16_EMBEDDING_LENGTH_1024,
             Centroid16Comparator1024,
-        >::deserialize(quantizer_path, ());
-
-        let (vids, centroid_quantizer) = match centroid_quantizer {
-            Ok(centroid_quantizer) => (comparator.count().map(VectorId), centroid_quantizer),
-            Err(_) => {
+        >::deserialize(&quantizer_path, ());
+        let comparator_path = staging_file.join("comparator");
+        let deserialization_result = centroid_quantizer_result.and_then(|centroid_quantizer| {
+            let quantized_comparator_result = Quantized16Comparator1024::deserialize(
+                &comparator_path,
+                centroid_quantizer.comparator().clone(),
+            );
+            quantized_comparator_result
+                .map(|quantized_comparator| (centroid_quantizer, quantized_comparator))
+        });
+        let (vids, centroid_quantizer, quantized_comparator) = match deserialization_result {
+            Ok((centroid_quantizer, quantized_comparator)) => (
+                (0..comparator.num_vecs()).map(VectorId).collect(),
+                centroid_quantizer,
+                quantized_comparator,
+            ),
+            _ => {
                 let (centroid_hnsw, quantized_comparator) = QuantizedHnsw::<
                     EMBEDDING_LENGTH_1024,
                     CENTROID_16_LENGTH,
@@ -321,6 +334,13 @@ fn perform_indexing(
                     progress,
                 );
 
+                let centroid_quantizer: HnswQuantizer<
+                    EMBEDDING_LENGTH_1024,
+                    CENTROID_16_LENGTH,
+                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                    Centroid16Comparator1024,
+                > = HnswQuantizer::new(centroid_hnsw, pq_build_parameters);
+
                 let (vids, centroid_quantizer) = QuantizedHnsw::<
                     EMBEDDING_LENGTH_1024,
                     CENTROID_16_LENGTH,
@@ -328,18 +348,31 @@ fn perform_indexing(
                     Centroid16Comparator1024,
                     Quantized16Comparator1024,
                     Disk1024Comparator,
-                >::construct_centroids(
+                >::perform_quantization(
                     comparator.clone(),
-                    pq_build_parameters,
-                    centroid_hnsw,
+                    centroid_quantizer,
                     quantized_comparator.clone(),
                     progress,
                 );
+
+                let (centroid_hnsw, quantized_comparator) = QuantizedHnsw::<
+                    EMBEDDING_LENGTH_1024,
+                    CENTROID_16_LENGTH,
+                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                    Centroid16Comparator1024,
+                    Quantized16Comparator1024,
+                    Disk1024Comparator,
+                >::generate_centroid_hnsw(
+                    comparator.clone(),
+                    number_of_centroids,
+                    pq_build_parameters.centroids,
+                    progress,
+                );
+                centroid_quantizer.serialize(quantizer_path)?;
+                quantized_comparator.serialize(comparator_path)?;
+                (vids, centroid_quantizer, quantized_comparator)
             }
         };
-
-        centroid_quantizer.serialize(quantizer_path)?;
-
         let quantized_hnsw: QuantizedHnsw<
             EMBEDDING_LENGTH_1024,
             CENTROID_16_LENGTH,
@@ -347,7 +380,7 @@ fn perform_indexing(
             Centroid16Comparator1024,
             Quantized16Comparator1024,
             Disk1024Comparator,
-        > = QuantizedHnsw::new_with_centroid_quantizer(
+        > = QuantizedHnsw::new_with_quantized_vectors(
             comparator,
             pq_build_parameters,
             vids,
@@ -361,9 +394,8 @@ fn perform_indexing(
         todo!("We currently don't have a configuraton for 1024 unquantized")
         /*
         let build_parameters = BuildParameters::default();
-        let hnsw = Hnsw::generate(comparator, vecs, build_parameters, progress);
-            HnswConfiguration::Unquantized1024(model, hnsw)
-        */
+        let hnsw = Hnsw::generate(comparator, vecs, build_parameters         HnswConfiguration::Unquantized1024(model, hnsw)
+         */
     };
     eprintln!("done generating hnsw");
     hnsw.serialize(&staging_file)?;
