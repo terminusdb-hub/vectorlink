@@ -46,7 +46,7 @@ pub fn serialize_hnsw<C: Serializable, P: AsRef<Path>>(
         .create(true)
         .truncate(true)
         .open(hnsw_meta)?;
-    eprintln!("opened hnsw file");
+    eprintln!("opened hnsw file for write");
 
     let serialized = serde_json::to_string(&HNSWMeta {
         layer_count,
@@ -54,7 +54,7 @@ pub fn serialize_hnsw<C: Serializable, P: AsRef<Path>>(
     })?;
     eprintln!("serialized data");
     hnsw_meta_file.write_all(serialized.as_bytes())?;
-    eprintln!("serialized to file");
+    eprintln!("serialized metadata");
 
     if layer_count > 0 {
         let mut hnsw_comparator: PathBuf = path.as_ref().into();

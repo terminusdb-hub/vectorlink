@@ -46,6 +46,11 @@ pub const CENTROID_8_BYTE_LENGTH: usize = CENTROID_8_LENGTH * 4;
 pub type Centroid8 = [f32; CENTROID_8_LENGTH];
 pub type Centroid8Bytes = [u8; CENTROID_8_BYTE_LENGTH];
 
+pub const QUANTIZED_8_EMBEDDING_LENGTH_1024: usize = 128;
+pub const QUANTIZED_8_EMBEDDING_BYTE_LENGTH_1024: usize = QUANTIZED_8_EMBEDDING_LENGTH_1024 * 2;
+pub type Quantized8Embedding1024 = [u16; QUANTIZED_8_EMBEDDING_LENGTH_1024];
+pub type Quantized8EmbeddingBytes1024 = [u8; QUANTIZED_8_EMBEDDING_BYTE_LENGTH_1024];
+
 pub const QUANTIZED_4_EMBEDDING_LENGTH: usize = 384;
 pub const QUANTIZED_4_EMBEDDING_BYTE_LENGTH: usize = QUANTIZED_4_EMBEDDING_LENGTH * 2;
 pub type Quantized4Embedding = [u16; QUANTIZED_4_EMBEDDING_LENGTH];
@@ -246,6 +251,26 @@ impl DistanceCalculator for EuclideanDistance8 {
 }
 
 #[derive(Default)]
+pub struct EuclideanDistance8For1024;
+impl DistanceCalculator for EuclideanDistance8For1024 {
+    type T = Centroid8;
+
+    fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
+        euclidean_partial_distance_8(left, right)
+    }
+
+    fn finalize_partial_distance(&self, distance: f32) -> f32 {
+        distance.sqrt()
+    }
+
+    fn aggregate_partial_distances(&self, distances: &[f32]) -> f32 {
+        assert!(distances.len() == QUANTIZED_8_EMBEDDING_LENGTH);
+        let cast = unsafe { &*(distances.as_ptr() as *const [f32; QUANTIZED_8_EMBEDDING_LENGTH]) };
+        simd::sum_192(cast).sqrt()
+    }
+}
+
+#[derive(Default)]
 pub struct EuclideanDistance4;
 impl DistanceCalculator for EuclideanDistance4 {
     type T = Centroid4;
@@ -279,6 +304,10 @@ pub fn sum_64(vec: &[f32; 64]) -> f32 {
 
 pub fn sum_96(vec: &[f32; 96]) -> f32 {
     simd::sum_96(vec)
+}
+
+pub fn sum_128(vec: &[f32; 128]) -> f32 {
+    simd::sum_128(vec)
 }
 
 pub fn sum_192(vec: &[f32; 192]) -> f32 {
@@ -431,6 +460,14 @@ pub mod simd {
         sum += <f32x16>::from_slice(&array[64..80]);
         sum += <f32x16>::from_slice(&array[80..96]);
 
+        sum.reduce_sum()
+    }
+
+    pub fn sum_128(array: &[f32; 128]) -> f32 {
+        let mut sum = <f32x16>::from_slice(&array[..16]);
+        for i in 1..8 {
+            sum += <f32x16>::from_slice(&array[16 * i..16 * (i + 1)]);
+        }
         sum.reduce_sum()
     }
 
