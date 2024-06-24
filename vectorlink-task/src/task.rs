@@ -32,6 +32,8 @@ use prometheus_exporter::{
     prometheus::{register_counter, register_counter_vec, TextEncoder, gather},
 };
 
+const PUSHGATEWAY_IP: &str = "http://localhost:9091";
+
 #[derive(Clone)]
 pub struct Task {
     client: Client,
