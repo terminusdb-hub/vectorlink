@@ -481,7 +481,7 @@ where
     }
 
     fn register_metrics() -> (CV, C, C, C, C, C, C) {
-        let tasks_claimed = register_counter_vec!("task_claimed_counter", "Number of tasks claimed", &["status"]).unwrap();
+        let tasks_claimed = register_counter_vec!("task_claimed_counter", "Number of tasks claimed", &["status", "task_id"]).unwrap();
         let tasks_started = register_counter!("task_started_counter", "Number of tasks started").unwrap();
         let tasks_spawned = register_counter!("task_spawned_counter", "Number of tasks spawned").unwrap();
         let tasks_resumed = register_counter!("task_resumed_counter", "Number of tasks resumed").unwrap();
@@ -509,7 +509,7 @@ where
 
         loop {
             let mut task = queue.next_task().await?;
-            metrics.tasks_claimed.with_label_values(&[&task.status().to_string()]).inc();
+            metrics.tasks_claimed.with_label_values(&[&task.status().to_string(), &task.task_id()]).inc();
             // todo, the clone here is not really desirable. we need a way to get the liveness without copying a full task
             match task.status() {
                 TaskStatus::Pending => {
