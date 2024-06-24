@@ -24,11 +24,12 @@ use crate::{
     queue::Queue,
 };
 
-use prometheus::core::{AtomicF64, GenericCounter};
+use prometheus::core::{AtomicF64, GenericCounter, GenericCounterVec};
 type C = GenericCounter<AtomicF64>;
+type CV = GenericCounterVec<AtomicF64>;
 use prometheus_exporter::{
     self,
-    prometheus::{register_counter, TextEncoder, gather},
+    prometheus::{register_counter, register_counter_vec, TextEncoder, gather},
 };
 
 #[derive(Clone)]
@@ -391,6 +392,21 @@ impl TaskStatus {
     }
 }
 
+impl fmt::Display for TaskStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) {
+        match self {
+            TaskStatus::Pending => write!(f, "pending"),
+            TaskStatus::Resuming => write!(f, "resuming"),
+            TaskStatus::Running => write!(f, "running"),
+            TaskStatus::Waiting => write!(f, "waiting"),
+            TaskStatus::Paused => write!(f, "paused"),
+            TaskStatus::Complete => write!(f, "complete"),
+            TaskStatus::Error => write!(f, "error"),
+            TaskStatus::Canceled => write!(f, "canceled"),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TaskData {
     pub status: TaskStatus,
@@ -452,28 +468,38 @@ where
         prometheus_exporter::start(binding).unwrap();
     }
 
-    fn register_metrics() -> (C, C, C, C, C, C, C) {
-        let task_claimed_counter = register_counter!("task_claimed_counter", "Number of tasks claimed").unwrap();
-        let task_started_counter = register_counter!("task_started_counter", "Number of tasks started").unwrap();
-        let task_spawned_counter = register_counter!("task_spawned_counter", "Number of tasks spawned").unwrap();
-        let task_resumed_counter = register_counter!("task_resumed_counter", "Number of tasks resumed").unwrap();
-        let spawn_error_counter = register_counter!("spawn_error_counter", "Number of tasks that encountered an error during spawn").unwrap();
-        let task_finish_ok_counter = register_counter!("task_finish_ok_counter", "Number of tasks that finished successfully").unwrap();
-        let task_finish_err_counter = register_counter!("task_finish_err_counter", "Number of tasks that finished with an error").unwrap();
-        (task_claimed_counter, task_started_counter, task_spawned_counter, task_resumed_counter, spawn_error_counter, task_finish_ok_counter, task_finish_err_counter)
+    struct Metrics {
+        tasks_claimed: CV,
+        tasks_started: C,
+        tasks_spawned: C,
+        tasks_resumed: C,
+        errors_spawned: C,
+        tasks_finished_ok: C,
+        tasks_finished_err: C,
+    }
+
+    fn register_metrics() -> (CV, C, C, C, C, C, C) {
+        let tasks_claimed = register_counter_vec!("task_claimed_counter", "Number of tasks claimed", &["status"]).unwrap();
+        let tasks_started = register_counter!("task_started_counter", "Number of tasks started").unwrap();
+        let tasks_spawned = register_counter!("task_spawned_counter", "Number of tasks spawned").unwrap();
+        let tasks_resumed = register_counter!("task_resumed_counter", "Number of tasks resumed").unwrap();
+        let errors_spawned = register_counter!("spawn_error_counter", "Number of tasks that encountered an error during spawn").unwrap();
+        let tasks_finished_ok = register_counter!("task_finish_ok_counter", "Number of tasks that finished successfully").unwrap();
+        let tasks_finished_err = register_counter!("task_finish_err_counter", "Number of tasks that finished with an error").unwrap();
+        Metrics {
+            tasks_claimed,
+            tasks_started,
+            tasks_spawned,
+            tasks_resumed,
+            errors_spawned,
+            tasks_finished_ok,
+            tasks_finished_err,
+        }
     }
 
     async fn process_queue(queue: &mut Queue) -> Result<(), TaskStateError> {
         Self::start_prometheus_exporter();
-        let (
-            task_claimed_counter,
-            task_started_counter,
-            task_spawned_counter,
-            task_resumed_counter,
-            spawn_error_counter,
-            task_finish_ok_counter,
-            task_finish_err_counter,
-        ) = Self::register_metrics();
+        let mut metrics = Self::register_metrics();
 
         let metric_families = gather();
         let encoder = TextEncoder::new();
@@ -481,12 +507,12 @@ where
 
         loop {
             let mut task = queue.next_task().await?;
-            task_claimed_counter.inc();
+            metrics.tasks_claimed.with_label_values(&[&task.status().to_string()]).inc();
             // todo, the clone here is not really desirable. we need a way to get the liveness without copying a full task
             match task.status() {
                 TaskStatus::Pending => {
                     task.start().await?;
-                    task_started_counter.inc();
+                    metrics.tasks_started.inc();
                     let init_live = TaskLiveness::new(task.clone());
                     match tokio::task::spawn(Self::initialize(init_live)).await {
                         Ok(Ok(progress)) => {
@@ -494,7 +520,7 @@ where
                         }
                         Ok(Err(e)) => {
                             task.finish_error(e).await?;
-                            spawn_error_counter.inc();
+                            metrics.errors_spawned.inc();
                             // end task
                             continue;
                         }
@@ -506,16 +532,16 @@ where
                                 }
                                 Err(e) => task.finish_error(e.to_string()).await?,
                             };
-                            spawn_error_counter.inc();
+                            metrics.errors_spawned.inc();
                             // end task
                             continue;
                         }
                     }
-                    task_spawned_counter.inc();
+                    metrics.tasks_spawned.inc();
                 }
                 TaskStatus::Resuming => {
                     task.resume().await?;
-                    task_resumed_counter.inc();
+                    metrics.tasks_resumed.inc();
                 }
                 _ => panic!("task was not in proper state"),
             };
@@ -529,15 +555,15 @@ where
             match result {
                 Ok(Ok(c)) => {
                     task.finish(c).await?;
-                    task_finish_ok_counter.inc();
+                    metrics.tasks_finished_ok.inc();
                 }
                 Ok(Err(e)) => {
                     task.finish_error(e).await?;
-                    task_finish_err_counter.inc();
+                    metrics.tasks_finished_err.inc();
                 }
                 Err(e) => {
                     task.finish_error(e.to_string()).await?;
-                    task_finish_err_counter.inc();
+                    metrics.tasks_finished_err.inc();
                 }
             }
         }
