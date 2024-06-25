@@ -74,6 +74,8 @@
           };
         });
 
+      nixosModules.vl-queue = import nix/modules/queue.nix;
+
       devShells = forAllSystems (system :
         let pkgs = nixpkgsFor.${system};in
         {

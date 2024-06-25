@@ -13,4 +13,6 @@ let vectorlink-build-support = final.callPackage ./build {}; in
     create-vectorize-tasks = final.callPackage ../python/create-vectorize-task {};
     read-line-from-index = final.callPackage ../python/read-line-from-index {};
   };
+
+  # vectorlink-modules.vl-queue = import modules/queue.nix;
 }
