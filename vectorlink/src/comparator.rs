@@ -859,7 +859,9 @@ impl Serializable for Quantized16Comparator1024 {
         let path_buf: PathBuf = path.as_ref().into();
         std::fs::create_dir_all(&path_buf)?;
 
+        eprintln!("serializing quantized comparator to {:?}", &path_buf);
         let vector_path = path_buf.join("vectors");
+        eprintln!("with vector file {:?}", &vector_path);
         let mut vector_file =
             VectorFile::create_size::<_, Quantized16Embedding1024>(vector_path, true)?;
         vector_file
