@@ -75,6 +75,7 @@
         });
 
       nixosModules.vl-queue = import nix/modules/queue.nix;
+      nixosModules.vectorlink-worker = import nix/modules/vectorlink-worker.nix;
 
       devShells = forAllSystems (system :
         let pkgs = nixpkgsFor.${system};in
