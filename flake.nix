@@ -2,8 +2,7 @@
   description = "Vectorlink projects and machines";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-23.11";
-    nixpkgs-unstable.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-24.05";
     crane = {
       url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -16,39 +15,30 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, crane, rust-overlay }@inputs: (
+  outputs = { self, nixpkgs, crane, rust-overlay }@inputs: (
     let
       supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      makeOverlay = (import nix/overlay.nix) ./. inputs;
-      nixpkgsFor = forAllSystems makeOverlay;
+      overlay = import nix/overlay.nix;
+      nixpkgsFor = forAllSystems (system:
+        (import nixpkgs) {
+          inherit system;
+          config = { allowUnfree = true; cudaSupport = true; cudaVersion = "12"; };
+          overlays = [
+            (import rust-overlay)
+            (final: prev: {
+              craneLib = (crane.mkLib prev).overrideToolchain final.rust-bin.nightly.latest.minimal;
+            })
+            overlay
+          ];
+        }
+      );
     in
     {
-      overlays = nixpkgsFor;
+      overlays.default = overlay;
+
       packages = forAllSystems (system:
-        let pkgs = nixpkgsFor.${system};
-            /*
-            unstablepkgs = import nixpkgs-unstable {
-              inherit system;
-              config = {
-                allowUnfree = true;
-                cudaSupport = true;
-                cudaVersion = "12";
-              };
-            };
-*/
-        in
-        {
-          vectorlink = pkgs.callPackage ./vectorlink {};
-          vectorlink-task-monitor = pkgs.callPackage ./vectorlink-task-monitor {};
-          vectorlink-task-py = pkgs.callPackage ./vectorlink-task-py {};
-          vectorlink-worker = pkgs.callPackage ./vectorlink-worker {};
-          task-util = pkgs.callPackage ./task-util {};
-          line-index = pkgs.callPackage ./line-index {};
-          vectorlink-vectorize = pkgs.callPackage python/vectorlink-vectorize {};
-          create-vectorize-tasks = pkgs.callPackage python/create-vectorize-task {};
-          read-line-from-index = pkgs.callPackage python/read-line-from-index {};
-        }
+        nixpkgsFor.${system}.vectorlink
       );
 
       apps = forAllSystems (system :

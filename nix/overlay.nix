@@ -1,53 +1,16 @@
-# Takes flake inputs as an attribute set, and a path to the workspace root.
-# Output is a an overlay for # building the projects in this
-# workspace.
-#
-# Specifically, we ensure there's a configured craneLib with
-# arch-specific rust args for simd instructions, and we provide a
-# workspace dependency derivation that all projects can then depend
-# on.
-let rustFlagsFor = {
-      x86 = "-C target-feature=+sse3,+avx,+avx2";
-      arm = "-C target-feature=+neon";
-    };
-in
-path:
-{nixpkgs-unstable, rust-overlay, crane, self, ...}:
-system:
-import nixpkgs-unstable {
-  inherit system;
-  config = { allowUnfree = true; cudaSupport = true; cudaVersion = "12"; };
-  overlays = [
-    (import rust-overlay)
-    (final: prev: rec {
-      vectorlink = self.packages.${system};
-      craneLib = (crane.mkLib prev).overrideToolchain final.rust-bin.nightly.latest.minimal;
-      rust-args = {
-        nativeBuildInputs = [
-          final.pkg-config
-          final.protobuf
-          final.python311
-        ];
-        buildInputs = [
-          final.openssl
-        ];
-        RUSTFLAGS = if final.stdenv.hostPlatform.isAarch64 then rustFlagsFor.arm else rustFlagsFor.x86;
-        src = craneLib.cleanCargoSource (craneLib.path path);
-        strictDeps = true;
-        doCheck = false;
-      };
-      vl-workspace = craneLib.buildDepsOnly (rust-args // {
-        pname = "vectorlink";
-        version = "0.1.0";
-      });
-      buildWorkspacePackage = {projectPath,...}@args:
-        let cargoToml = projectPath + "/Cargo.toml";
-            nameInfo = craneLib.crateNameFromCargoToml {inherit cargoToml;};
-        in
-          craneLib.buildPackage (rust-args // nameInfo // {
-            cargoArtifacts = vl-workspace;
-            cargoExtraArgs = "-p " + nameInfo.pname;
-          } // args);
-    })
-  ];
+# overlay with all packages, as well as the build support tooling for building them.
+final: prev:
+let vectorlink-build-support = final.callPackage ./build {}; in
+{
+  vectorlink = {
+    vectorlink = final.callPackage ../vectorlink {inherit vectorlink-build-support;};
+    vectorlink-task-monitor = final.callPackage ../vectorlink-task-monitor {inherit vectorlink-build-support;};
+    vectorlink-task-py = final.callPackage ../vectorlink-task-py {inherit vectorlink-build-support;};
+    vectorlink-worker = final.callPackage ../vectorlink-worker {inherit vectorlink-build-support;};
+    task-util = final.callPackage ../task-util {inherit vectorlink-build-support;};
+    line-index = final.callPackage ../line-index {inherit vectorlink-build-support;};
+    vectorlink-vectorize = final.callPackage ../python/vectorlink-vectorize {inherit vectorlink-build-support;};
+    create-vectorize-tasks = final.callPackage ../python/create-vectorize-task {inherit vectorlink-build-support;};
+    read-line-from-index = final.callPackage ../python/read-line-from-index {inherit vectorlink-build-support;};
+  };
 }
