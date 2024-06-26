@@ -293,6 +293,7 @@ impl<
     ) -> (
         Vec<VectorId>,
         HnswQuantizer<SIZE, CENTROID_SIZE, QUANTIZED_SIZE, CentroidComparator>,
+        QuantizedComparator,
     ) {
         let mut vids: Vec<VectorId> = Vec::new();
         let mut iter = comparator.vector_chunks();
@@ -320,7 +321,7 @@ impl<
         }
         std::mem::drop(iter);
 
-        (vids, centroid_quantizer)
+        (vids, centroid_quantizer, quantized_comparator)
     }
 
     pub fn new_with_quantized_vectors(
@@ -397,10 +398,10 @@ impl<
             pq_build_parameters: bp,
         };
 
-        let (vids, centroid_quantizer) = Self::perform_quantization(
+        let (vids, centroid_quantizer, quantized_comparator) = Self::perform_quantization(
             comparator.clone(),
             centroid_quantizer,
-            quantized_comparator.clone(),
+            quantized_comparator,
             progress,
         );
 

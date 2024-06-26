@@ -873,7 +873,9 @@ impl Serializable for Quantized16Comparator1024 {
     fn deserialize<P: AsRef<Path>>(path: P, cc: Self::Params) -> Result<Self, SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
 
+        eprintln!("deserializing quantized comparator to {:?}", &path_buf);
         let vector_path = path_buf.join("vectors");
+        eprintln!("with vector file {:?}", &vector_path);
         let vector_file = VectorFile::open_size::<_, Quantized16Embedding1024>(vector_path, true)?;
         let range = vector_file.as_sized().all_vectors()?;
 

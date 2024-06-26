@@ -341,7 +341,7 @@ fn perform_indexing(
                     Centroid16Comparator1024,
                 > = HnswQuantizer::new(centroid_hnsw, pq_build_parameters);
 
-                let (vids, centroid_quantizer) = QuantizedHnsw::<
+                let (vids, centroid_quantizer, quantized_comparator) = QuantizedHnsw::<
                     EMBEDDING_LENGTH_1024,
                     CENTROID_16_LENGTH,
                     QUANTIZED_16_EMBEDDING_LENGTH_1024,
@@ -351,7 +351,7 @@ fn perform_indexing(
                 >::perform_quantization(
                     comparator.clone(),
                     centroid_quantizer,
-                    quantized_comparator.clone(),
+                    quantized_comparator,
                     progress,
                 );
                 centroid_quantizer.serialize(quantizer_path)?;
