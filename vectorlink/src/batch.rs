@@ -8,6 +8,7 @@ use std::{
 
 use futures::{future, Stream, StreamExt, TryStreamExt};
 use parallel_hnsw::{
+    keepalive,
     parameters::{BuildParameters, PqBuildParameters},
     pq::HnswQuantizer,
     Serializable,
@@ -304,7 +305,7 @@ fn perform_indexing(
             QUANTIZED_16_EMBEDDING_LENGTH_1024,
             Centroid16Comparator1024,
         >::deserialize(&quantizer_path, ());
-        let comparator_path = staging_file.join("comparator");
+        let comparator_path = staging_file.join("hnsw/comparator");
         let deserialization_result = centroid_quantizer_result.and_then(|centroid_quantizer| {
             let quantized_comparator_result = Quantized16Comparator1024::deserialize(
                 &comparator_path,
@@ -384,8 +385,8 @@ fn perform_indexing(
          */
     };
     eprintln!("done generating hnsw");
-    hnsw.serialize(&staging_file)?;
-    eprintln!("done serializing hnwsca");
+    keepalive!(progress, hnsw.serialize(&staging_file))?;
+    eprintln!("done serializing hnsw");
     eprintln!("renaming {staging_file:?} to {final_file:?}");
     std::fs::rename(&staging_file, &final_file)?;
     eprintln!("renamed hnsw");
