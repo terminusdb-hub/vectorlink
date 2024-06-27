@@ -7,7 +7,7 @@ use rayon::iter::Either;
 use rayon::prelude::*;
 
 use parallel_hnsw::parameters::{OptimizationParameters, SearchParameters};
-use parallel_hnsw::Serializable;
+use parallel_hnsw::{keepalive, Serializable};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -178,8 +178,10 @@ impl TaskHandler for VectorlinkTaskHandler {
                 let store = VectorStore::new(&directory, 12345);
                 let index_name = create_index_name(&domain, &commit);
                 let path = index_serialization_path(&directory, &index_name);
-                let mut hnsw: HnswConfiguration =
-                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap();
+                let mut hnsw: HnswConfiguration = keepalive!(
+                    monitor,
+                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap()
+                );
                 let mut build_parameters = hnsw.build_parameters_for_improve_index();
                 if let Some(optimization_parameters) = optimization_parameters {
                     build_parameters.optimization = optimization_parameters;
@@ -194,8 +196,10 @@ impl TaskHandler for VectorlinkTaskHandler {
                 let store = VectorStore::new(&directory, 12345);
                 let index_name = create_index_name(&domain, &commit);
                 let path = index_serialization_path(&directory, &index_name);
-                let mut hnsw: HnswConfiguration =
-                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap();
+                let mut hnsw: HnswConfiguration = keepalive!(
+                    monitor,
+                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap()
+                );
                 let mut build_parameters = hnsw.build_parameters_for_improve_index();
                 if let Some(optimization_parameters) = optimization_parameters {
                     build_parameters.optimization = optimization_parameters;
