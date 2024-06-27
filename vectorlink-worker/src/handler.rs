@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use tokio::task::block_in_place;
-use vectorlink::indexer::create_index_name;
+use vectorlink::indexer::{create_index_name, index_serialization_path};
 use vectorlink::openai::Model;
 use vectorlink::vectors::VectorStore;
 use vectorlink::{batch::index_domain, configuration::HnswConfiguration};
@@ -176,8 +176,10 @@ impl TaskHandler for VectorlinkTaskHandler {
                 optimization_parameters,
             } => {
                 let store = VectorStore::new(&directory, 12345);
+                let index_name = create_index_name(&domain, &commit);
+                let path = index_serialization_path(&directory, &index_name);
                 let mut hnsw: HnswConfiguration =
-                    HnswConfiguration::deserialize(&directory, Arc::new(store)).unwrap();
+                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap();
                 let mut build_parameters = hnsw.build_parameters_for_improve_index();
                 if let Some(optimization_parameters) = optimization_parameters {
                     build_parameters.optimization = optimization_parameters;
@@ -190,8 +192,10 @@ impl TaskHandler for VectorlinkTaskHandler {
                 optimization_parameters,
             } => {
                 let store = VectorStore::new(&directory, 12345);
+                let index_name = create_index_name(&domain, &commit);
+                let path = index_serialization_path(&directory, &index_name);
                 let mut hnsw: HnswConfiguration =
-                    HnswConfiguration::deserialize(&directory, Arc::new(store)).unwrap();
+                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap();
                 let mut build_parameters = hnsw.build_parameters_for_improve_index();
                 if let Some(optimization_parameters) = optimization_parameters {
                     build_parameters.optimization = optimization_parameters;
@@ -311,9 +315,11 @@ mod tests {
 
     #[test]
     fn serialization_test() {
-        let io = IndexOperation::ImproveIndex {
+        let index_operation = IndexOperation::ImproveIndex {
             optimization_parameters: None,
+            statistics: {},
         };
+        let io = index_operation;
         let s1 = serde_json::to_string(&io).unwrap();
 
         let bi = IndexOperation::BuildIndex;
