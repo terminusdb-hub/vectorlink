@@ -1,18 +1,26 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use parallel_hnsw::parameters::OptimizationParameters;
+use byteorder::{LittleEndian, WriteBytesExt};
+use rayon::iter::Either;
+use rayon::prelude::*;
+
+use parallel_hnsw::parameters::{OptimizationParameters, SearchParameters};
 use parallel_hnsw::Serializable;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+
 use tokio::task::block_in_place;
+use vectorlink::indexer::create_index_name;
 use vectorlink::openai::Model;
 use vectorlink::vectors::VectorStore;
 use vectorlink::{batch::index_domain, configuration::HnswConfiguration};
 use vectorlink_task::task::{SyncTaskLiveness, TaskHandler, TaskLiveness};
 
 use parallel_hnsw::progress::{Interrupt, LayerStatistics, ProgressMonitor};
+
+use std::fs::OpenOptions;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct IndexingRequest {
@@ -28,6 +36,11 @@ pub struct IndexingRequest {
 #[serde(tag = "type")]
 pub enum IndexOperation {
     BuildIndex,
+    FindDuplicates {
+        take: Option<usize>,
+        threshold: f32,
+        duplicates: String,
+    },
     ImproveIndex {
         optimization_parameters: Option<OptimizationParameters>,
         statistics: HashMap<usize, LayerStatistics>,
@@ -74,6 +87,7 @@ impl TaskHandler for VectorlinkTaskHandler {
     ) -> Result<Self::Progress, Self::Error> {
         let init = live.init().unwrap().unwrap();
         let statistics = match init.operation {
+            IndexOperation::FindDuplicates { .. } => HashMap::new(),
             IndexOperation::BuildIndex => HashMap::new(),
             IndexOperation::ImproveIndex { statistics, .. } => statistics,
             IndexOperation::ImproveIndexAt { statistics, .. } => statistics,
@@ -103,6 +117,48 @@ impl TaskHandler for VectorlinkTaskHandler {
 
         let mut monitor = TaskMonitor(live);
         block_in_place(|| match operation {
+            IndexOperation::FindDuplicates {
+                take,
+                threshold,
+                duplicates,
+            } => {
+                let store = VectorStore::new(&directory, 1234);
+                let hnsw_index_path = dbg!(format!(
+                    "{}/{}.hnsw",
+                    &directory,
+                    create_index_name(&domain, &commit)
+                ));
+
+                let hnsw =
+                    HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
+                let sp = SearchParameters::default();
+                let elts = if let Some(take) = take {
+                    Either::Left(hnsw.threshold_nn(threshold, sp).take_any(take))
+                } else {
+                    Either::Right(hnsw.threshold_nn(threshold, sp))
+                };
+                let duplicates_path = format!("{}/{}", directory, duplicates);
+                let duplicates = OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .create(true)
+                    .open(duplicates_path)
+                    .unwrap();
+                let mutex = Arc::new(Mutex::new(0));
+                elts.for_each(move |(v, results)| {
+                    let mut cluster = Vec::new();
+                    let mut file = duplicates.try_clone().unwrap();
+                    let _guard = mutex.lock().unwrap();
+                    for result in results.iter() {
+                        let distance = result.1;
+                        if distance < threshold {
+                            cluster.push((result.0 .0, distance));
+                            file.write_u64::<LittleEndian>(v.0 as u64).unwrap();
+                            file.write_u64::<LittleEndian>(result.0 .0 as u64).unwrap();
+                        }
+                    }
+                });
+            }
             IndexOperation::BuildIndex => {
                 index_domain(
                     key,
