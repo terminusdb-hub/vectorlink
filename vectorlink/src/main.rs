@@ -60,9 +60,9 @@ struct Args {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-enum SearchOutputFormat {
+pub enum SearchOutputFormat {
     TwoColumn,
-    JSON,
+    Json,
 }
 
 #[derive(Subcommand, Debug)]
@@ -538,7 +538,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         }
                     });
                 }
-                SearchOutputFormat::JSON => {
+                SearchOutputFormat::Json => {
                     elts.for_each(|(v, results)| {
                         let mut cluster = Vec::new();
                         for result in results.iter() {

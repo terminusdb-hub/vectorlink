@@ -564,14 +564,17 @@ impl<
     ) -> Result<Self, crate::SerializationError> {
         let path_buf: PathBuf = path.as_ref().into();
 
+        eprintln!("deserializing quantizer");
         let quantizer_path = path_buf.join("quantizer");
         let quantizer: HnswQuantizer<SIZE, CENTROID_SIZE, QUANTIZED_SIZE, CentroidComparator> =
             HnswQuantizer::deserialize(quantizer_path, ())?;
         let centroid_comparator = quantizer.comparator().clone();
 
+        eprintln!("deserializing centroid hnsw");
         let hnsw_path = path_buf.join("hnsw");
         let hnsw: Hnsw<QuantizedComparator> = Hnsw::deserialize(hnsw_path, centroid_comparator)?;
 
+        eprintln!("deserializing comparator");
         let comparator_path = path_buf.join("comparator");
         let full_comparator = FullComparator::deserialize(comparator_path, params)?;
 

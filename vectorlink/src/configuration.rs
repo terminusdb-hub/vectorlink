@@ -416,9 +416,10 @@ impl Serializable for HnswConfiguration {
             .create(false)
             .read(true)
             .open(state_path)?;
-
+        eprintln!("deserializing state");
         let state: HnswConfigurationState = serde_json::from_reader(&mut state_file)?;
 
+        eprintln!("deserializing configuration");
         Ok(match state.typ {
             HnswConfigurationType::QuantizedOpenAi => HnswConfiguration::QuantizedOpenAi(
                 state.model,
@@ -443,10 +444,13 @@ impl Serializable for HnswConfiguration {
                     QuantizedHnsw::deserialize(path, params)?,
                 )
             }
-            HnswConfigurationType::Quantized1024 => HnswConfiguration::Quantized1024By16(
-                state.model,
-                QuantizedHnsw::deserialize(path, params)?,
-            ),
+            HnswConfigurationType::Quantized1024 => {
+                eprintln!("deserializing quantized hnsw");
+                HnswConfiguration::Quantized1024By16(
+                    state.model,
+                    QuantizedHnsw::deserialize(path, params)?,
+                )
+            }
         })
     }
 }
