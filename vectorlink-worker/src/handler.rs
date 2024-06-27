@@ -33,7 +33,6 @@ pub struct IndexingRequest {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
 pub enum IndexOperation {
     BuildIndex,
     FindDuplicates {
