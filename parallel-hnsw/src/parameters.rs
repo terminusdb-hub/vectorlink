@@ -49,6 +49,7 @@ pub struct BuildParameters {
     pub neighborhood_size: usize,
     pub optimization: OptimizationParameters,
     pub initial_partition_search: SearchParameters,
+    pub max_recall_threshold: Option<f32>,
 }
 
 impl Default for BuildParameters {
@@ -65,6 +66,7 @@ impl Default for BuildParameters {
                 circulant_parameter_count: 0,
                 random_link_count: 0,
             },
+            max_recall_threshold: None,
         }
     }
 }

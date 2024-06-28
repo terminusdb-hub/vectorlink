@@ -1613,7 +1613,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
 
     pub fn improve_index_at(
         &mut self,
-        mut layer_from_top: usize,
+        layer_from_top: usize,
         bp: BuildParameters,
         progress: &mut dyn ProgressMonitor,
     ) -> (f32, usize) {
@@ -1644,58 +1644,50 @@ impl<C: Comparator + 'static> Hnsw<C> {
             .set_layer_statistics(layer_from_top, statistics)
             .unwrap();
 
+        let max_recall_threshold = bp.max_recall_threshold.unwrap_or(1.0);
         let mut improvement = maybe_improvement.unwrap_or(1.0);
         let mut bailout = 1;
-        let mut current_layer_from_top;
-        while improvement >= promotion_threshold && recall < 1.0 && bailout != 0 {
+        while improvement >= promotion_threshold && recall < max_recall_threshold && bailout != 0 {
             eprintln!("improve_index_at {improvement}>={promotion_threshold} && {recall} < 1.0 && {bailout} != 0");
             let last_recall = recall;
-            current_layer_from_top = 0;
-            while current_layer_from_top <= layer_from_top && bailout != 0 {
-                let layer_count = self.layer_count();
-                eprintln!("improve_index_at is going to call improve_neighbors_upto");
-                self.improve_neighborhoods_at_layer(current_layer_from_top, op.search);
+            eprintln!("improve_index_at is going to call improve_neighbors_upto");
+            self.improve_neighborhoods_at_layer(layer_from_top, op.search);
 
-                recall = self.stochastic_recall_at(current_layer_from_top, op);
+            recall = self.stochastic_recall_at(layer_from_top, op);
+            statistics.recall = Some(recall);
+            progress
+                .set_layer_statistics(layer_from_top, statistics)
+                .unwrap();
+
+            /*
+            eprintln!("About to promote");
+            if self.promote_at_layer(current_layer_from_top, bp, progress) {
+                let new_layer_count = self.layer_count();
+                eprintln!("New layer count: {new_layer_count}, old layer count: {layer_count}");
+                for i in 0..new_layer_count {
+                    progress.invalidate_layer_statistics(i).unwrap();
+                }
+
+                let layer_delta = new_layer_count - layer_count;
+                assert!(new_layer_count >= layer_count);
+                eprintln!("We did promote!  With layer delta: {layer_delta}");
+                eprintln!("original current_layer_from_top is {current_layer_from_top}");
+                current_layer_from_top += layer_delta;
+                layer_from_top += layer_delta;
+                eprintln!("corrected current_layer_from_top is {current_layer_from_top}");
+                recall = self.improve_neighbors_upto(current_layer_from_top + 1, op, Some(recall));
+                eprintln!("recall after promotion: {recall}");
                 statistics.recall = Some(recall);
                 progress
                     .set_layer_statistics(layer_from_top, statistics)
                     .unwrap();
-
-                if recall == 1.0 {
-                    current_layer_from_top += 1;
-                    continue;
-                }
-
-                eprintln!("About to promote");
-                if self.promote_at_layer(current_layer_from_top, bp, progress) {
-                    let new_layer_count = self.layer_count();
-                    eprintln!("New layer count: {new_layer_count}, old layer count: {layer_count}");
-                    for i in 0..new_layer_count {
-                        progress.invalidate_layer_statistics(i).unwrap();
-                    }
-
-                    let layer_delta = new_layer_count - layer_count;
-                    assert!(new_layer_count >= layer_count);
-                    eprintln!("We did promote!  With layer delta: {layer_delta}");
-                    eprintln!("original current_layer_from_top is {current_layer_from_top}");
-                    current_layer_from_top += layer_delta;
-                    layer_from_top += layer_delta;
-                    eprintln!("corrected current_layer_from_top is {current_layer_from_top}");
-                    recall =
-                        self.improve_neighbors_upto(current_layer_from_top + 1, op, Some(recall));
-                    eprintln!("recall after promotion: {recall}");
-                    statistics.recall = Some(recall);
-                    progress
-                        .set_layer_statistics(layer_from_top, statistics)
-                        .unwrap();
-                }
-
-                current_layer_from_top += 1;
             }
+            */
+
             bailout -= 1;
             improvement = recall - last_recall;
             eprintln!("outer loop improvement: {improvement}");
+
             statistics.recall = Some(recall);
             statistics.improvement = Some(improvement);
             progress
