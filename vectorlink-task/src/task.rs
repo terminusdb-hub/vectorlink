@@ -711,7 +711,7 @@ macro_rules! keepalive {
 macro_rules! keepalive_sync {
     ($live: expr, $body: expr) => {{
         {
-            let guard = $live.guarded_keepalive();
+            let guard = $live.guarded_keepalive().expect("keepalive failed");
             let result = $body;
             guard.join().expect("keepalive failed");
 

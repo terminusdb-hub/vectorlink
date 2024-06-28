@@ -16,6 +16,7 @@ use vectorlink::indexer::{create_index_name, index_serialization_path};
 use vectorlink::openai::Model;
 use vectorlink::vectors::VectorStore;
 use vectorlink::{batch::index_domain, configuration::HnswConfiguration};
+use vectorlink_task::keepalive_sync;
 use vectorlink_task::task::{SyncTaskLiveness, TaskHandler, TaskLiveness};
 
 use parallel_hnsw::progress::{Interrupt, LayerStatistics, ProgressMonitor};
@@ -128,8 +129,10 @@ impl TaskHandler for VectorlinkTaskHandler {
                     create_index_name(&domain, &commit)
                 ));
 
-                let hnsw =
-                    HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
+                let hnsw = keepalive!(
+                    monitor,
+                    HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap()
+                );
                 let sp = SearchParameters::default();
                 let elts = if let Some(take) = take {
                     Either::Left(hnsw.threshold_nn(threshold, sp).take_any(take))
@@ -144,19 +147,22 @@ impl TaskHandler for VectorlinkTaskHandler {
                     .open(duplicates_path)
                     .unwrap();
                 let mutex = Arc::new(Mutex::new(0));
-                elts.for_each(move |(v, results)| {
-                    let mut cluster = Vec::new();
-                    let mut file = duplicates.try_clone().unwrap();
-                    let _guard = mutex.lock().unwrap();
-                    for result in results.iter() {
-                        let distance = result.1;
-                        if distance < threshold {
-                            cluster.push((result.0 .0, distance));
-                            file.write_u64::<LittleEndian>(v.0 as u64).unwrap();
-                            file.write_u64::<LittleEndian>(result.0 .0 as u64).unwrap();
+                keepalive!(
+                    monitor,
+                    elts.for_each(move |(v, results)| {
+                        let mut cluster = Vec::new();
+                        let mut file = duplicates.try_clone().unwrap();
+                        let _guard = mutex.lock().unwrap();
+                        for result in results.iter() {
+                            let distance = result.1;
+                            if distance < threshold {
+                                cluster.push((result.0 .0, distance));
+                                file.write_u64::<LittleEndian>(v.0 as u64).unwrap();
+                                file.write_u64::<LittleEndian>(result.0 .0 as u64).unwrap();
+                            }
                         }
-                    }
-                });
+                    })
+                );
             }
             IndexOperation::BuildIndex => {
                 index_domain(
