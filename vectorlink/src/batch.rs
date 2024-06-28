@@ -299,17 +299,23 @@ fn perform_indexing(
         let pq_build_parameters = PqBuildParameters::default();
 
         let quantizer_path = staging_file.join("quantizer");
-        let centroid_quantizer_result = HnswQuantizer::<
-            EMBEDDING_LENGTH_1024,
-            CENTROID_16_LENGTH,
-            QUANTIZED_16_EMBEDDING_LENGTH_1024,
-            Centroid16Comparator1024,
-        >::deserialize(&quantizer_path, ());
+        let centroid_quantizer_result = keepalive!(
+            progress,
+            HnswQuantizer::<
+                EMBEDDING_LENGTH_1024,
+                CENTROID_16_LENGTH,
+                QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                Centroid16Comparator1024,
+            >::deserialize(&quantizer_path, ())
+        );
         let comparator_path = staging_file.join("hnsw/comparator");
         let deserialization_result = centroid_quantizer_result.and_then(|centroid_quantizer| {
-            let quantized_comparator_result = Quantized16Comparator1024::deserialize(
-                &comparator_path,
-                centroid_quantizer.comparator().clone(),
+            let quantized_comparator_result = keepalive!(
+                progress,
+                Quantized16Comparator1024::deserialize(
+                    &comparator_path,
+                    centroid_quantizer.comparator().clone(),
+                )
             );
             quantized_comparator_result
                 .map(|quantized_comparator| (centroid_quantizer, quantized_comparator))
@@ -355,8 +361,8 @@ fn perform_indexing(
                     quantized_comparator,
                     progress,
                 );
-                centroid_quantizer.serialize(quantizer_path)?;
-                quantized_comparator.serialize(comparator_path)?;
+                keepalive!(progress, centroid_quantizer.serialize(quantizer_path))?;
+                keepalive!(progress, quantized_comparator.serialize(comparator_path))?;
                 (vids, centroid_quantizer, quantized_comparator)
             }
         };
