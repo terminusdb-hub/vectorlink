@@ -31,7 +31,9 @@ use rand_distr::{Distribution, Exp, Uniform};
 use rayon::prelude::*;
 use std::fmt::Debug;
 
-use crate::{priority_queue::PriorityQueue, search::match_within_epsilon};
+use crate::{
+    priority_queue::PriorityQueue, search::match_within_epsilon, utils::estimate_sample_size,
+};
 use crate::{progress::LayerStatistics, search::assert_layer_invariants};
 
 const PRIMES: [usize; 43] = [
@@ -1527,7 +1529,8 @@ impl<C: Comparator + 'static> Hnsw<C> {
 
         (vecs, layer_from_top)
     }
-    */
+     */
+
     pub fn stochastic_recall_at(
         &self,
         at: usize,
@@ -1538,10 +1541,8 @@ impl<C: Comparator + 'static> Hnsw<C> {
         eprintln!("layer count: {}", self.layer_count());
         let layer = self.get_layer_from_top(at).unwrap();
         let total = layer.node_count();
-        let selection = usize::max(
-            1,
-            (total as f32 * optimization_parameters.recall_proportion) as usize,
-        );
+        let selection = estimate_sample_size(optimization_parameters.recall_confidence, total);
+        eprintln!("selection size: {}/{}", selection, total);
         let vecs_to_find: Vec<VectorId> = if selection == total {
             layer.nodes.clone()
         } else {
@@ -2061,6 +2062,8 @@ mod tests {
 
     use rand_distr::Uniform;
 
+    use crate::progress::SimpleProgressMonitor;
+
     use super::bigvec::*;
     use super::*;
     type SillyVec = [f32; 3];
@@ -2105,7 +2108,8 @@ mod tests {
         bp.order = 6;
         bp.neighborhood_size = 3;
         bp.zero_layer_neighborhood_size = 6;
-        let hnsw: Hnsw<SillyComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let hnsw: Hnsw<SillyComparator> =
+            Hnsw::generate(c, vs, bp, &mut SimpleProgressMonitor::default());
         hnsw
     }
 
@@ -2130,7 +2134,8 @@ mod tests {
         bp.neighborhood_size = 3;
         bp.zero_layer_neighborhood_size = 6;
 
-        let mut hnsw: Hnsw<SillyComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let mut hnsw: Hnsw<SillyComparator> =
+            Hnsw::generate(c, vs, bp, &mut SimpleProgressMonitor::default());
         let bottom = &mut hnsw.layers[1];
         // add a ninth disconnected vector
         bottom.nodes.push(VectorId(9));
@@ -2322,7 +2327,7 @@ mod tests {
         eprintln!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
         eprintln!("Finished building, now improving");
         eprintln!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-        hnsw.improve_index(bp, None, &mut ());
+        hnsw.improve_index(bp, &mut SimpleProgressMonitor::default());
         do_test_recall(&hnsw, 1.0);
         panic!();
     }
@@ -2334,14 +2339,14 @@ mod tests {
         let bp = BuildParameters::default();
         let mut hnsw: Hnsw<BigComparator> =
             bigvec::make_random_hnsw_with_build_parameters(size, dimension, bp);
-        hnsw.improve_index(bp, None, &mut ());
+        hnsw.improve_index(bp, &mut SimpleProgressMonitor::default());
         do_test_recall(&hnsw, 0.0);
         let mut improvement_count = 0;
         let mut last_recall = 0.0;
         let mut last_improvement = 1.0;
         while last_improvement > 0.001 {
             eprintln!("{improvement_count} time to improve index");
-            hnsw.improve_index(bp, None, &mut ());
+            hnsw.improve_index(bp, &mut SimpleProgressMonitor::default());
             let new_recall = do_test_recall(&hnsw, 0.0);
             last_improvement = new_recall - last_recall;
             last_recall = new_recall;
@@ -2359,7 +2364,7 @@ mod tests {
         let bp = BuildParameters::default();
         let mut hnsw: Hnsw<BigComparator> =
             bigvec::make_random_hnsw_with_build_parameters(size, dimension, bp);
-        hnsw.improve_index(bp, None, &mut ());
+        hnsw.improve_index(bp, &mut SimpleProgressMonitor::default());
         do_test_recall(&hnsw, 0.0);
         panic!()
     }
@@ -2368,7 +2373,7 @@ mod tests {
     fn test_small_index_improvement() {
         let mut hnsw: Hnsw<SillyComparator> = make_simple_hnsw();
         eprintln!("One from bottom: {:?}", hnsw.layers[hnsw.layer_count() - 2]);
-        hnsw.improve_index(hnsw.build_parameters, None, &mut ());
+        hnsw.improve_index(hnsw.build_parameters, &mut SimpleProgressMonitor::default());
         eprintln!(
             "One from bottom after: {:?}",
             hnsw.layers[hnsw.layer_count() - 2]
@@ -2384,7 +2389,7 @@ mod tests {
     #[test]
     fn test_tiny_index_improvement() {
         let mut hnsw: Hnsw<SillyComparator> = make_broken_hnsw();
-        hnsw.improve_index(hnsw.build_parameters, None, &mut ());
+        hnsw.improve_index(hnsw.build_parameters, &mut SimpleProgressMonitor::default());
         let data = &hnsw.layers[hnsw.layer_count() - 1].comparator.data;
         for (i, datum) in data.iter().enumerate() {
             let v = AbstractVector::Unstored(datum);
@@ -2427,7 +2432,7 @@ mod tests {
         let mut hnsw = best_hnsw.unwrap();
         while last_improvement > 0.001 {
             eprintln!("{improvement_count} time to improve index");
-            hnsw.improve_index(hnsw.build_parameters, None, &mut ());
+            hnsw.improve_index(hnsw.build_parameters, &mut SimpleProgressMonitor::default());
             let new_recall = do_test_recall(&hnsw, 0.0);
             last_improvement = new_recall - last_recall;
             last_recall = new_recall;
@@ -2573,8 +2578,9 @@ mod tests {
         let mut bp = BuildParameters::default();
         bp.initial_partition_search.circulant_parameter_count = 0;
         bp.optimization.search.circulant_parameter_count = 0;
-        let mut hnsw: Hnsw<Comparator32> = Hnsw::generate(cc, vids, bp, &mut ());
-        hnsw.improve_index(bp, None, &mut ());
+        let mut monitor = SimpleProgressMonitor::default();
+        let mut hnsw: Hnsw<Comparator32> = Hnsw::generate(cc, vids, bp, &mut monitor);
+        hnsw.improve_index(bp, &mut monitor);
         panic!()
     }
 
@@ -2651,7 +2657,8 @@ mod tests {
         bp.initial_partition_search.circulant_parameter_count = 0;
         bp.optimization.search.circulant_parameter_count = 0;
 
-        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let hnsw: Hnsw<BigComparator> =
+            Hnsw::generate(c, vs, bp, &mut SimpleProgressMonitor::default());
         let recall = hnsw.stochastic_recall(bp.optimization);
         assert_eq!(recall, 1.0);
     }
@@ -2677,7 +2684,8 @@ mod tests {
         bp.initial_partition_search.circulant_parameter_count = 6;
         bp.optimization.search.circulant_parameter_count = 6;
 
-        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let mut progress_monitor = SimpleProgressMonitor::default();
+        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut progress_monitor);
         let recall = hnsw.stochastic_recall(bp.optimization);
         assert_eq!(recall, 1.0);
     }
@@ -2705,7 +2713,8 @@ mod tests {
         bp.initial_partition_search.random_link_count = 12;
         bp.optimization.search.random_link_count = 12;
 
-        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let hnsw: Hnsw<BigComparator> =
+            Hnsw::generate(c, vs, bp, &mut SimpleProgressMonitor::default());
         let recall = hnsw.stochastic_recall(bp.optimization);
 
         assert_eq!(recall, 1.0);
@@ -2734,8 +2743,22 @@ mod tests {
         bp.initial_partition_search.random_link_count = 12;
         bp.optimization.search.random_link_count = 12;
 
-        let hnsw: Hnsw<BigComparator> = Hnsw::generate(c, vs, bp, &mut ());
+        let hnsw: Hnsw<BigComparator> =
+            Hnsw::generate(c, vs, bp, &mut SimpleProgressMonitor::default());
         let recall = hnsw.stochastic_recall(bp.optimization);
         assert_eq!(recall, 1.0);
+    }
+
+    #[test]
+    fn test_size() {
+        let total = 10;
+        let recall_confidence = 0.99;
+        let n = estimate_sample_size(recall_confidence, total);
+        assert_eq!(n, 10);
+
+        let total = 10_000_000;
+        let recall_confidence = 0.99;
+        let n = estimate_sample_size(recall_confidence, total);
+        assert_eq!(n, 17113);
     }
 }

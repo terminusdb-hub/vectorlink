@@ -193,6 +193,7 @@ impl TaskHandler for VectorlinkTaskHandler {
                     build_parameters.optimization = optimization_parameters;
                 }
                 hnsw.improve_index(build_parameters, &mut monitor);
+                keepalive!(monitor, hnsw.serialize())
             }
             IndexOperation::ImproveIndexAt {
                 layer,

@@ -25,7 +25,7 @@ impl Default for SearchParameters {
 pub struct OptimizationParameters {
     pub promotion_threshold: f32,
     pub neighborhood_threshold: f32,
-    pub recall_proportion: f32,
+    pub recall_confidence: f32,
     pub promotion_proportion: f32,
     pub search: SearchParameters,
 }
@@ -35,7 +35,7 @@ impl Default for OptimizationParameters {
         Self {
             promotion_threshold: 0.01,
             neighborhood_threshold: 0.01,
-            recall_proportion: 0.1,
+            recall_confidence: 0.99,
             promotion_proportion: 0.0,
             search: SearchParameters::default(),
         }

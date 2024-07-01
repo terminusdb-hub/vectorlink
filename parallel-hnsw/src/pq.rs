@@ -636,7 +636,7 @@ mod tests {
         sync::{Arc, RwLock, RwLockReadGuard},
     };
 
-    use crate::bigvec::random_normed_vec;
+    use crate::{bigvec::random_normed_vec, progress::SimpleProgressMonitor};
 
     use super::*;
 
@@ -884,6 +884,10 @@ mod tests {
         fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>> {
             vec![self.data.read().unwrap().clone()].into_iter()
         }
+
+        fn num_vecs(&self) -> usize {
+            self.data.read().unwrap().len()
+        }
     }
 
     #[derive(Clone)]
@@ -936,6 +940,10 @@ mod tests {
 
         fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>> {
             vec![self.data.read().unwrap().clone()].into_iter()
+        }
+
+        fn num_vecs(&self) -> usize {
+            self.data.read().unwrap().len()
         }
     }
 
@@ -1063,7 +1071,7 @@ mod tests {
         };
         let bp = PqBuildParameters::default();
         let hnsw: QuantizedHnsw<1536, 16, 96, CentroidComparator16, QuantizedComparator16, _> =
-            QuantizedHnsw::new(100, fc, bp, &mut ());
+            QuantizedHnsw::new(100, fc, bp, &mut SimpleProgressMonitor::default());
         let v = AbstractVector::Unstored(&vecs[0]);
         let res = hnsw.search(v, bp.hnsw.optimization.search);
         eprintln!("res: {res:?}");
@@ -1088,7 +1096,7 @@ mod tests {
         };
         let bp = PqBuildParameters::default();
         let mut hnsw: QuantizedHnsw<16, 4, 4, CentroidComparator4, QuantizedComparator4, _> =
-            QuantizedHnsw::new(100, fc, bp, &mut ());
+            QuantizedHnsw::new(100, fc, bp, &mut SimpleProgressMonitor::default());
         hnsw.improve_neighbors(bp.hnsw.optimization, None);
 
         // Test last vector individually
@@ -1155,9 +1163,14 @@ mod tests {
         let centroid_comparator = CentroidComparator16::new(centroids);
         //let quantized_comparator = QuantizedComparator16::new(&centroid_comparator);
         let bp = PqBuildParameters::default();
-        let mut centroid_hnsw: Hnsw<CentroidComparator16> =
-            Hnsw::generate(centroid_comparator, vector_ids, bp.centroids, &mut ());
-        let recall = centroid_hnsw.improve_index(bp.centroids, &mut ());
+        let mut centroid_hnsw: Hnsw<CentroidComparator16> = Hnsw::generate(
+            centroid_comparator,
+            vector_ids,
+            bp.centroids,
+            &mut SimpleProgressMonitor::default(),
+        );
+        let recall =
+            centroid_hnsw.improve_index(bp.centroids, &mut SimpleProgressMonitor::default());
         assert!(recall > 0.99);
     }
 
@@ -1181,7 +1194,7 @@ mod tests {
         let bp = PqBuildParameters::default();
 
         let mut hnsw: QuantizedHnsw<1536, 16, 96, CentroidComparator16, QuantizedComparator16, _> =
-            QuantizedHnsw::new(centroids, fc, bp, &mut ());
+            QuantizedHnsw::new(centroids, fc, bp, &mut SimpleProgressMonitor::default());
         let (avg, std) = hnsw.stochastic_reconstruction_cost(1.0);
         eprintln!("Average cost: {avg}");
         eprintln!("Standard deviation: {std}");
@@ -1209,7 +1222,7 @@ mod tests {
         let bp = PqBuildParameters::default();
 
         let mut hnsw: QuantizedHnsw<1536, 8, 192, CentroidComparator8, QuantizedComparator8, _> =
-            QuantizedHnsw::new(centroids, fc, bp, &mut ());
+            QuantizedHnsw::new(centroids, fc, bp, &mut SimpleProgressMonitor::default());
         let (avg, std) = hnsw.stochastic_reconstruction_cost(1.0);
         eprintln!("Average cost: {avg}");
         eprintln!("Standard deviation: {std}");
