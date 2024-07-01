@@ -16,7 +16,6 @@ use vectorlink::indexer::{create_index_name, index_serialization_path};
 use vectorlink::openai::Model;
 use vectorlink::vectors::VectorStore;
 use vectorlink::{batch::index_domain, configuration::HnswConfiguration};
-use vectorlink_task::keepalive_sync;
 use vectorlink_task::task::{SyncTaskLiveness, TaskHandler, TaskLiveness};
 
 use parallel_hnsw::progress::{Interrupt, LayerStatistics, ProgressMonitor};
@@ -186,14 +185,14 @@ impl TaskHandler for VectorlinkTaskHandler {
                 let path = index_serialization_path(&directory, &index_name);
                 let mut hnsw: HnswConfiguration = keepalive!(
                     monitor,
-                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap()
+                    HnswConfiguration::deserialize(&path, Arc::new(store)).unwrap()
                 );
                 let mut build_parameters = hnsw.build_parameters_for_improve_index();
                 if let Some(optimization_parameters) = optimization_parameters {
                     build_parameters.optimization = optimization_parameters;
                 }
                 hnsw.improve_index(build_parameters, &mut monitor);
-                keepalive!(monitor, hnsw.serialize())
+                keepalive!(monitor, hnsw.serialize(path).unwrap());
             }
             IndexOperation::ImproveIndexAt {
                 layer,
@@ -205,13 +204,15 @@ impl TaskHandler for VectorlinkTaskHandler {
                 let path = index_serialization_path(&directory, &index_name);
                 let mut hnsw: HnswConfiguration = keepalive!(
                     monitor,
-                    HnswConfiguration::deserialize(path, Arc::new(store)).unwrap()
+                    HnswConfiguration::deserialize(&path, Arc::new(store)).unwrap()
                 );
                 let mut build_parameters = hnsw.build_parameters_for_improve_index();
                 if let Some(optimization_parameters) = optimization_parameters {
                     build_parameters.optimization = optimization_parameters;
                 }
                 hnsw.improve_index_at(layer, build_parameters, &mut monitor);
+
+                keepalive!(monitor, hnsw.serialize(path).unwrap());
             }
         });
 
