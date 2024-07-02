@@ -32,7 +32,6 @@ use configuration::HnswConfiguration;
 use openai::Model;
 use parallel_hnsw::parameters::OptimizationParameters;
 use parallel_hnsw::parameters::SearchParameters;
-use parallel_hnsw::progress::ProgressMonitor;
 use parallel_hnsw::progress::SimpleProgressMonitor;
 use parallel_hnsw::AbstractVector;
 use parallel_hnsw::Serializable;
@@ -515,6 +514,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, size);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
+
+            let maybe_quantization_statistics = hnsw.test_quantization();
+            let threshold = match maybe_quantization_statistics {
+                Some(qs) => {
+                    let QuantizationStatistics {
+                        sample_avg,
+                        sample_deviation,
+                        ..
+                    } = qs;
+                    threshold + sample_avg + 2.0 * sample_deviation
+                }
+                None => threshold,
+            };
 
             let sp = SearchParameters::default();
             let elts = if let Some(take) = take {

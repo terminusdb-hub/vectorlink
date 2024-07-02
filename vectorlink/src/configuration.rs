@@ -18,6 +18,7 @@ use crate::{
         Quantized4Comparator, Quantized8Comparator,
     },
     openai::Model,
+    utils::{test_quantization, QuantizationStatistics},
     vecmath::{
         Embedding, Embedding1024, CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH,
         CENTROID_8_LENGTH, EMBEDDING_LENGTH, EMBEDDING_LENGTH_1024, QUANTIZED_16_EMBEDDING_LENGTH,
@@ -107,6 +108,17 @@ pub enum HnswConfiguration {
 }
 
 impl HnswConfiguration {
+    pub fn test_quantization(&self) -> Option<QuantizationStatistics> {
+        match &self {
+            HnswConfiguration::QuantizedOpenAi(_, q) => Some(test_quantization(q)),
+            HnswConfiguration::SmallQuantizedOpenAi(_, q) => Some(test_quantization(q)),
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => Some(test_quantization(q)),
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => Some(test_quantization(q)),
+            HnswConfiguration::Quantized1024By16(_, q) => Some(test_quantization(q)),
+            HnswConfiguration::UnquantizedOpenAi(_, _) => None,
+        }
+    }
+
     fn state(&self) -> HnswConfigurationState {
         let (typ, model) = match self {
             HnswConfiguration::QuantizedOpenAi(model, _) => {

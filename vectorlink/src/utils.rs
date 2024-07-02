@@ -2,6 +2,7 @@ use rayon::prelude::*;
 
 use parallel_hnsw::{
     pq::{PartialDistance, QuantizedHnsw, Quantizer, VectorSelector, VectorStore},
+    utils::estimate_sample_size,
     Comparator,
 };
 
@@ -36,45 +37,36 @@ pub fn test_quantization<
 ) -> QuantizationStatistics {
     let c = hnsw.quantized_comparator();
     let quantized_vecs = c.data().vecs();
-    let mut cursor: &[[u16; QUANTIZED_SIZE]] = quantized_vecs;
     let quantizer = hnsw.quantizer();
     // sample_avg = sum(errors)/|errors|
     // sample_var = sum((error - sample_avg)^2)/|errors|
 
     let fc = hnsw.full_comparator();
-    let errors = vec![0.0_f32; hnsw.vector_count()];
-
+    let sample_size = estimate_sample_size(0.95, fc.num_vecs());
+    let reconstruction_error = vec![0.0_f32; sample_size];
     eprintln!("starting processing of vector chunks");
-    let mut offset = 0;
-    for chunk in fc.vector_chunks() {
-        let len = chunk.len();
-        let quantized_chunk = &cursor[..len];
-        cursor = &cursor[len..];
+    fc.selection_with_id(sample_size)
+        .into_par_iter()
+        .map(|(vecid, full_vec)| (full_vec, &quantized_vecs[vecid.0]))
+        .map(|(full_vec, quantized_vec)| {
+            let reconstructed = quantizer.reconstruct(quantized_vec);
 
-        chunk
-            .into_par_iter()
-            .zip(quantized_chunk.into_par_iter())
-            .map(|(full_vec, quantized_vec)| {
-                let reconstructed = quantizer.reconstruct(quantized_vec);
+            fc.compare_raw(&full_vec, &reconstructed)
+        })
+        .enumerate()
+        .for_each(|(ix, distance)| unsafe {
+            let ptr = reconstruction_error.as_ptr().add(ix) as *mut f32;
+            *ptr = distance;
+        });
 
-                fc.compare_raw(&full_vec, &reconstructed)
-            })
-            .enumerate()
-            .for_each(|(ix, distance)| unsafe {
-                let ptr = errors.as_ptr().add(offset + ix) as *mut f32;
-                *ptr = distance;
-            });
-
-        offset += len;
-    }
-
-    let sample_avg: f32 = errors.iter().sum::<f32>() / errors.len() as f32;
-    let sample_var = errors
+    let sample_avg: f32 =
+        reconstruction_error.iter().sum::<f32>() / reconstruction_error.len() as f32;
+    let sample_var = reconstruction_error
         .iter()
         .map(|e| (e - sample_avg))
         .map(|x| x * x)
         .sum::<f32>()
-        / (errors.len() - 1) as f32;
+        / (reconstruction_error.len() - 1) as f32;
     let sample_deviation = sample_var.sqrt();
 
     QuantizationStatistics {
