@@ -572,7 +572,7 @@ impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default + Sync> Seria
         path: P,
         _params: Self::Params,
     ) -> Result<Self, SerializationError> {
-        let vector_file = VectorFile::open_size::<_, [f32; N]>(path, true)?;
+        let vector_file = VectorFile::open_size::<_, [f32; N]>(path, true, false)?;
         let centroids = Arc::new(vector_file.as_sized().all_vectors()?);
 
         Ok(Self {
@@ -772,7 +772,8 @@ impl Serializable for Quantized32Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open_size::<_, Quantized32Embedding>(vector_path, true)?;
+        let vector_file =
+            VectorFile::open_size::<_, Quantized32Embedding>(vector_path, true, false)?;
         let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
@@ -876,7 +877,8 @@ impl Serializable for Quantized16Comparator1024 {
         eprintln!("deserializing quantized comparator to {:?}", &path_buf);
         let vector_path = path_buf.join("vectors");
         eprintln!("with vector file {:?}", &vector_path);
-        let vector_file = VectorFile::open_size::<_, Quantized16Embedding1024>(vector_path, true)?;
+        let vector_file =
+            VectorFile::open_size::<_, Quantized16Embedding1024>(vector_path, true, false)?;
         let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
@@ -976,7 +978,8 @@ impl Serializable for Quantized8Comparator1024 {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open_size::<_, Quantized8Embedding1024>(vector_path, true)?;
+        let vector_file =
+            VectorFile::open_size::<_, Quantized8Embedding1024>(vector_path, true, false)?;
         let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
@@ -1077,7 +1080,8 @@ impl Serializable for Quantized16Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let vector_file =
+            VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true, false)?;
         let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
@@ -1153,7 +1157,8 @@ impl Serializable for Quantized8Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let vector_file =
+            VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true, false)?;
         let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);
@@ -1229,7 +1234,8 @@ impl Serializable for Quantized4Comparator {
         let path_buf: PathBuf = path.as_ref().into();
 
         let vector_path = path_buf.join("vectors");
-        let vector_file = VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true)?;
+        let vector_file =
+            VectorFile::open_size::<_, Quantized16Embedding>(vector_path, true, false)?;
         let range = vector_file.as_sized().all_vectors()?;
 
         let data = Arc::new(range);

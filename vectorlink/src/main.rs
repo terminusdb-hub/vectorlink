@@ -164,8 +164,8 @@ enum Commands {
         directory: String,
         #[arg(short, long, default_value_t = 10000)]
         size: usize,
-        #[arg(short, long, default_value_t = 0.001)]
-        recall_proportion: f32,
+        #[arg(short, long, default_value_t = 0.99)]
+        recall_confidence: f32,
     },
     Duplicates {
         #[arg(short, long)]
@@ -202,8 +202,8 @@ enum Commands {
         promotion_threshold: f32,
         #[arg(short, long, default_value_t = 0.01)]
         neighbor_threshold: f32,
-        #[arg(short, long, default_value_t = 1.0)]
-        recall_proportion: f32,
+        #[arg(short, long, default_value_t = 0.99)]
+        recall_confidence: f32,
         #[arg(short, long, default_value_t = 1.0)]
         promotion_proportion: f32,
     },
@@ -218,8 +218,8 @@ enum Commands {
         size: usize,
         #[arg(short, long, default_value_t = 0.01)]
         threshold: f32,
-        #[arg(short, long, default_value_t = 1.0)]
-        proportion: f32,
+        #[arg(short, long, default_value_t = 0.99)]
+        recall_confidence: f32,
     },
     PromoteAtLayer {
         #[arg(short, long)]
@@ -482,7 +482,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             directory,
             size,
             commit,
-            recall_proportion,
+            recall_confidence,
         } => {
             eprintln!("Testing recall");
             let dirpath = Path::new(&directory);
@@ -494,7 +494,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let store = VectorStore::new(dirpath, size);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
             let mut optimization_parameters = OptimizationParameters::default();
-            optimization_parameters.recall_proportion = recall_proportion;
+            optimization_parameters.recall_confidence = recall_confidence;
             let recall = hnsw.stochastic_recall(optimization_parameters);
             eprintln!("Recall: {recall}");
         }
@@ -564,7 +564,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             size,
             promotion_threshold,
             neighbor_threshold,
-            recall_proportion,
+            recall_confidence,
             promotion_proportion,
         } => {
             let dirpath = Path::new(&directory);
@@ -581,7 +581,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             build_parameters.optimization.promotion_threshold = promotion_threshold;
             build_parameters.optimization.promotion_proportion = promotion_proportion;
             build_parameters.optimization.neighborhood_threshold = neighbor_threshold;
-            build_parameters.optimization.recall_proportion = recall_proportion;
+            build_parameters.optimization.recall_confidence = recall_confidence;
             hnsw.improve_index(build_parameters, &mut SimpleProgressMonitor::default());
 
             // TODO should write to staging first
@@ -594,7 +594,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             directory,
             size,
             threshold,
-            proportion,
+            recall_confidence,
         } => {
             let dirpath = Path::new(&directory);
             let hnsw_index_path = dbg!(format!(
@@ -609,7 +609,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             let mut bp = hnsw.build_parameters_for_improve_index();
             bp.optimization.neighborhood_threshold = threshold;
-            bp.optimization.recall_proportion = proportion;
+            bp.optimization.recall_confidence = recall_confidence;
 
             // TODO do a quick test recall here
             hnsw.improve_neighbors(bp.optimization, None);

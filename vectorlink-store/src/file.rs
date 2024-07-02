@@ -70,10 +70,11 @@ impl VectorFile {
         path: P,
         vector_byte_size: usize,
         os_cached: bool,
+        writable: bool,
     ) -> io::Result<Self> {
         let path = path.as_ref().to_path_buf();
         let mut options = OpenOptions::new();
-        options.read(true).write(true).create(false);
+        options.read(true).write(writable).create(false);
         if !os_cached {
             options.custom_flags(libc::O_DIRECT);
         }
@@ -89,8 +90,12 @@ impl VectorFile {
         Ok(Self::new(path, file, num_vecs, vector_byte_size))
     }
 
-    pub fn open_size<P: AsRef<Path>, T>(path: P, os_cached: bool) -> io::Result<Self> {
-        Self::open(path, std::mem::size_of::<T>(), os_cached)
+    pub fn open_size<P: AsRef<Path>, T>(
+        path: P,
+        os_cached: bool,
+        writable: bool,
+    ) -> io::Result<Self> {
+        Self::open(path, std::mem::size_of::<T>(), os_cached, writable)
     }
 
     pub fn open_create<P: AsRef<Path>>(
@@ -99,7 +104,7 @@ impl VectorFile {
         os_cached: bool,
     ) -> io::Result<Self> {
         if path.as_ref().exists() {
-            Self::open(path, vector_byte_size, os_cached)
+            Self::open(path, vector_byte_size, os_cached, true)
         } else {
             Self::create(path, vector_byte_size, os_cached)
         }
