@@ -514,12 +514,12 @@ impl<
                 let reconstructed = quantizer.reconstruct(quantized_vec);
                 let res = reconstructed.iter().all(|x| *x == 0.0);
                 eprintln!("All zeros?: {res}");
+                eprintln!("Equal?: {}", full_vec == reconstructed);
                 let dist = fc.compare_raw(&full_vec, &reconstructed);
                 eprintln!("reconstructing distance: {dist}");
                 dist
             })
             .collect();
-        eprintln!("reconstruction_error: {reconstruction_error:?}");
 
         let sample_avg: f32 =
             reconstruction_error.iter().sum::<f32>() / reconstruction_error.len() as f32;
