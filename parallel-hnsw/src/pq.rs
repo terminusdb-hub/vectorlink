@@ -512,6 +512,8 @@ impl<
             .map(|(vecid, full_vec)| (full_vec, &quantized_vecs[vecid.0]))
             .map(|(full_vec, quantized_vec)| {
                 let reconstructed = quantizer.reconstruct(quantized_vec);
+                let res = reconstructed.iter().all(|x| *x == 0.0);
+                eprintln!("All zeros?: {res}");
                 let dist = fc.compare_raw(&full_vec, &reconstructed);
                 eprintln!("reconstructing distance: {dist}");
                 dist
