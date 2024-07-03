@@ -542,18 +542,23 @@ impl<
             ..
         } = self.quantization_statistics();
         eprintln!("threshold: {threshold}");
-        let threshold = threshold + sample_avg + 2.0 * sample_deviation;
+        let new_threshold = threshold + sample_avg + 2.0 * sample_deviation;
         eprintln!("sample_avg: {sample_avg}");
         eprintln!("sample_deviation: {sample_deviation}");
         eprintln!("recalculated threshold: {threshold}");
 
         self.hnsw
-            .threshold_nn(threshold, search_parameters)
-            .map(|(vid, queue)| {
-                (
-                    vid,
-                    self.pq_to_natural_distance_queue(AbstractVector::Stored(vid), queue),
-                )
+            .threshold_nn(new_threshold, search_parameters)
+            .map(move |(vid, queue)| {
+                let mut queue =
+                    self.pq_to_natural_distance_queue(AbstractVector::Stored(vid), queue);
+                let len = queue
+                    .iter()
+                    .rposition(|(_, d)| *d < threshold)
+                    .map(|pos| pos + 1)
+                    .unwrap_or(0);
+                queue.truncate(len);
+                (vid, queue)
             })
     }
 
