@@ -513,8 +513,8 @@ impl<
             .map(|(vecid, full_vec)| (full_vec, &quantized_vecs[vecid.0]))
             .map(|(full_vec, quantized_vec)| {
                 let reconstructed = quantizer.reconstruct(quantized_vec);
-
-                fc.compare_raw(&full_vec, &reconstructed)
+                let dist = fc.compare_raw(&full_vec, &reconstructed);
+                eprintln!("reconstructing distance: {dist} for {full_vec:?}");
             })
             .enumerate()
             .for_each(|(ix, distance)| unsafe {

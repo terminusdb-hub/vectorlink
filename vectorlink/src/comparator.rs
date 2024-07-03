@@ -222,6 +222,7 @@ impl pq::VectorSelector for Disk1024Comparator {
                 .map(|(i, v)| (VectorId(i), *v))
                 .collect();
         }
+        eprintln!("taking a random selection");
         let mut rng = thread_rng();
         let mut set = HashSet::new();
         let range = Uniform::from(0_usize..self.vectors.num_vecs());
