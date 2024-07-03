@@ -504,7 +504,9 @@ impl<
 
         let fc = self.full_comparator();
         let sample_size = estimate_sample_size(0.95, fc.num_vecs());
+        eprintln!("sample size: {sample_size}");
         let reconstruction_error = vec![0.0_f32; sample_size];
+        eprintln!("reconstruction_error: {reconstruction_error:?}");
         eprintln!("starting processing of vector chunks");
         fc.selection_with_id(sample_size)
             .into_par_iter()
