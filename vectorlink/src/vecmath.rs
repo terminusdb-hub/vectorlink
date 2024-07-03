@@ -337,12 +337,20 @@ pub mod simd {
         right: &Embedding1024,
     ) -> f32 {
         let mut sum = <f32x16>::splat(0.);
+        let mut left_norm = <f32x16>::splat(0.);
+        let mut right_norm = <f32x16>::splat(0.);
         for x in 0..left.len() / 16 {
             let l = <f32x16>::from_slice(&left[x * 16..(x + 1) * 16]);
             let r = <f32x16>::from_slice(&right[x * 16..(x + 1) * 16]);
+            left_norm += l * l;
+            right_norm += r * r;
             sum += l * r;
         }
-        normalize_cosine_distance(sum.reduce_sum())
+
+        let left_mag = left_norm.reduce_sum().sqrt();
+        let right_mag = right_norm.reduce_sum().sqrt();
+        let dot_product = sum.reduce_sum();
+        normalize_cosine_distance(dot_product / (left_mag * right_mag))
     }
 
     pub fn normalized_cosine_distance_32_simd(left: &Centroid32, right: &Centroid32) -> f32 {
