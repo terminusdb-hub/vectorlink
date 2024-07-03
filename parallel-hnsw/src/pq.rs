@@ -513,7 +513,7 @@ impl<
             .map(|(full_vec, quantized_vec)| {
                 let reconstructed = quantizer.reconstruct(quantized_vec);
                 let dist = fc.compare_raw(&full_vec, &reconstructed);
-                eprintln!("reconstructing distance: {dist} for {full_vec:?}");
+                eprintln!("reconstructing distance: {dist}");
                 dist
             })
             .collect();
