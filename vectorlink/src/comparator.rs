@@ -210,13 +210,14 @@ impl pq::VectorSelector for Disk1024Comparator {
 
     fn selection_with_id(&self, size: usize) -> Vec<(VectorId, Self::T)> {
         // TODO do something else for sizes close to number of vecs
+        eprintln!("disk1024Comparator selecting size: {size}");
         if size >= self.vectors.num_vecs() {
             return self
                 .vectors
                 .all_vectors()
                 .unwrap()
                 .vecs()
-                .into_iter()
+                .iter()
                 .enumerate()
                 .map(|(i, v)| (VectorId(i), *v))
                 .collect();

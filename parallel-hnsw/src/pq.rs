@@ -518,6 +518,7 @@ impl<
             })
             .enumerate()
             .for_each(|(ix, distance)| unsafe {
+                eprintln!("at ix: {ix}");
                 let ptr = reconstruction_error.as_ptr().add(ix) as *mut f32;
                 *ptr = distance;
             });
