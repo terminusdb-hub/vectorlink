@@ -817,6 +817,10 @@ impl pq::VectorStore for Quantized32Comparator {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 #[derive(Clone)]
@@ -922,6 +926,10 @@ impl pq::VectorStore for Quantized16Comparator1024 {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 #[derive(Clone)]
@@ -1022,6 +1030,10 @@ impl pq::VectorStore for Quantized8Comparator1024 {
         self.data = Arc::new(data);
 
         vectors
+    }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
     }
 }
 
@@ -1128,6 +1140,10 @@ impl pq::VectorStore for Quantized16Comparator {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 impl Comparator for Quantized8Comparator
@@ -1205,6 +1221,10 @@ impl pq::VectorStore for Quantized8Comparator {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 impl Comparator for Quantized4Comparator
@@ -1281,6 +1301,10 @@ impl pq::VectorStore for Quantized4Comparator {
         self.data = Arc::new(data);
 
         vectors
+    }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
     }
 }
 

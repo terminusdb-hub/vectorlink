@@ -16,7 +16,6 @@ mod domain;
 mod indexer;
 mod openai;
 mod server;
-mod utils;
 mod vecmath;
 mod vectors;
 
@@ -32,6 +31,7 @@ use configuration::HnswConfiguration;
 use openai::Model;
 use parallel_hnsw::parameters::OptimizationParameters;
 use parallel_hnsw::parameters::SearchParameters;
+use parallel_hnsw::pq::QuantizationStatistics;
 use parallel_hnsw::progress::SimpleProgressMonitor;
 use parallel_hnsw::AbstractVector;
 use parallel_hnsw::Serializable;
@@ -45,7 +45,6 @@ use rayon::iter::Either;
 use rayon::prelude::*;
 
 use crate::batch::index_domain;
-use crate::utils::{test_quantization, QuantizationStatistics};
 use crate::vecmath::normalize_vec;
 use crate::vecmath::Embedding;
 
@@ -515,19 +514,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let store = VectorStore::new(dirpath, size);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
 
-            let maybe_quantization_statistics = hnsw.test_quantization();
-            let threshold = match maybe_quantization_statistics {
-                Some(qs) => {
-                    let QuantizationStatistics {
-                        sample_avg,
-                        sample_deviation,
-                        ..
-                    } = qs;
-                    threshold + sample_avg + 2.0 * sample_deviation
-                }
-                None => threshold,
-            };
-
             let sp = SearchParameters::default();
             let elts = if let Some(take) = take {
                 Either::Left(hnsw.threshold_nn(threshold, sp).take_any(take))
@@ -724,19 +710,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, size);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
-            let QuantizationStatistics {
-                sample_avg,
-                sample_var,
-                sample_deviation,
-            } = match hnsw {
-                HnswConfiguration::QuantizedOpenAi(_, q) => test_quantization(&q),
-                HnswConfiguration::SmallQuantizedOpenAi(_, q) => test_quantization(&q),
-                HnswConfiguration::SmallQuantizedOpenAi8(_, q) => test_quantization(&q),
-                HnswConfiguration::SmallQuantizedOpenAi4(_, q) => test_quantization(&q),
-                HnswConfiguration::Quantized1024By16(_, q) => test_quantization(&q),
-                HnswConfiguration::UnquantizedOpenAi(_, _) => panic!("not a quantized hnsw"),
-            };
-            eprintln!("sample avg: {sample_avg}\nsample var: {sample_var}\nsample deviation: {sample_deviation}");
+            match hnsw.quantization_statistics() {
+                Some(qs) => {
+                    let QuantizationStatistics {
+                        sample_avg,
+                        sample_var,
+                        sample_deviation,
+                    } = qs;
+                    eprintln!("sample avg: {sample_avg}\nsample var: {sample_var}\nsample deviation: {sample_deviation}");
+                }
+                None => panic!("not a quantized hnsw"),
+            }
         }
         Commands::SearchServer {
             port,

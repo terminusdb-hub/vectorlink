@@ -13,5 +13,3 @@ pub mod vecmath;
 pub mod vectors;
 
 pub mod domain;
-
-pub mod utils;

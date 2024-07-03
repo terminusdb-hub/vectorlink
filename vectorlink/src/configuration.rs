@@ -3,7 +3,7 @@ use std::{fs::OpenOptions, path::PathBuf, sync::Arc};
 use itertools::Either;
 use parallel_hnsw::{
     parameters::{BuildParameters, OptimizationParameters, SearchParameters},
-    pq::QuantizedHnsw,
+    pq::{QuantizationStatistics, QuantizedHnsw},
     progress::{ProgressMonitor, SimpleProgressMonitor},
     AbstractVector, Hnsw, Serializable, VectorId,
 };
@@ -18,7 +18,6 @@ use crate::{
         Quantized4Comparator, Quantized8Comparator,
     },
     openai::Model,
-    utils::{test_quantization, QuantizationStatistics},
     vecmath::{
         Embedding, Embedding1024, CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH,
         CENTROID_8_LENGTH, EMBEDDING_LENGTH, EMBEDDING_LENGTH_1024, QUANTIZED_16_EMBEDDING_LENGTH,
@@ -108,13 +107,13 @@ pub enum HnswConfiguration {
 }
 
 impl HnswConfiguration {
-    pub fn test_quantization(&self) -> Option<QuantizationStatistics> {
+    pub fn quantization_statistics(&self) -> Option<QuantizationStatistics> {
         match &self {
-            HnswConfiguration::QuantizedOpenAi(_, q) => Some(test_quantization(q)),
-            HnswConfiguration::SmallQuantizedOpenAi(_, q) => Some(test_quantization(q)),
-            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => Some(test_quantization(q)),
-            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => Some(test_quantization(q)),
-            HnswConfiguration::Quantized1024By16(_, q) => Some(test_quantization(q)),
+            HnswConfiguration::QuantizedOpenAi(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::SmallQuantizedOpenAi(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::Quantized1024By16(_, q) => Some(q.quantization_statistics()),
             HnswConfiguration::UnquantizedOpenAi(_, _) => None,
         }
     }
