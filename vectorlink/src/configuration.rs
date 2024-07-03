@@ -3,7 +3,7 @@ use std::{fs::OpenOptions, path::PathBuf, sync::Arc};
 use itertools::Either;
 use parallel_hnsw::{
     parameters::{BuildParameters, OptimizationParameters, SearchParameters},
-    pq::QuantizedHnsw,
+    pq::{QuantizationStatistics, QuantizedHnsw},
     progress::{ProgressMonitor, SimpleProgressMonitor},
     AbstractVector, Hnsw, Serializable, VectorId,
 };
@@ -107,6 +107,17 @@ pub enum HnswConfiguration {
 }
 
 impl HnswConfiguration {
+    pub fn quantization_statistics(&self) -> Option<QuantizationStatistics> {
+        match &self {
+            HnswConfiguration::QuantizedOpenAi(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::SmallQuantizedOpenAi(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::SmallQuantizedOpenAi8(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::SmallQuantizedOpenAi4(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::Quantized1024By16(_, q) => Some(q.quantization_statistics()),
+            HnswConfiguration::UnquantizedOpenAi(_, _) => None,
+        }
+    }
+
     fn state(&self) -> HnswConfigurationState {
         let (typ, model) = match self {
             HnswConfiguration::QuantizedOpenAi(model, _) => {

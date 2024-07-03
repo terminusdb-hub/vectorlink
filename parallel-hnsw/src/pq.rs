@@ -13,8 +13,15 @@ use crate::{
     keepalive,
     parameters::{BuildParameters, OptimizationParameters, PqBuildParameters, SearchParameters},
     progress::{PqProgressMonitor, ProgressMonitor, ProgressUpdate},
+    utils::estimate_sample_size,
     AbstractVector, Comparator, Hnsw, OrderedFloat, Serializable, VectorId,
 };
+
+pub struct QuantizationStatistics {
+    pub sample_avg: f32,
+    pub sample_var: f32,
+    pub sample_deviation: f32,
+}
 
 pub trait Quantizer<const SIZE: usize, const QUANTIZED_SIZE: usize> {
     fn quantize(&self, vec: &[f32; SIZE]) -> [u16; QUANTIZED_SIZE];
@@ -132,7 +139,13 @@ pub struct QuantizedHnsw<
 
 pub trait VectorSelector {
     type T;
-    fn selection(&self, size: usize) -> Vec<Self::T>;
+    fn selection_with_id(&self, size: usize) -> Vec<(VectorId, Self::T)>;
+    fn selection(&self, size: usize) -> Vec<Self::T> {
+        self.selection_with_id(size)
+            .into_iter()
+            .map(|(_, v)| v)
+            .collect()
+    }
     fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>>;
     fn num_vecs(&self) -> usize;
 }
@@ -140,6 +153,7 @@ pub trait VectorSelector {
 pub trait VectorStore {
     type T;
     fn store(&mut self, i: Box<dyn Iterator<Item = Self::T>>) -> Vec<VectorId>;
+    fn vecs(&self) -> impl Iterator<Item = &Self::T>;
 }
 
 pub trait CentroidComparatorConstructor: Comparator {
@@ -415,16 +429,13 @@ impl<
         )
     }
 
-    pub fn search(
+    fn pq_to_natural_distance_queue(
         &self,
         v: AbstractVector<[f32; SIZE]>,
-        sp: SearchParameters,
+        distances: Vec<(VectorId, f32)>,
     ) -> Vec<(VectorId, f32)> {
-        let raw_v = self.comparator.lookup_abstract(v.clone());
-        let quantized = self.quantizer.quantize(&raw_v);
-        let result = self.hnsw.search(AbstractVector::Unstored(&quantized), sp);
-        let mut reordered = Vec::with_capacity(result.len());
-        for (id, _) in result {
+        let mut reordered = Vec::with_capacity(distances.len());
+        for (id, _) in distances {
             let dist = self
                 .full_comparator()
                 .compare_vec(AbstractVector::Stored(id), v.clone());
@@ -433,6 +444,17 @@ impl<
         reordered.sort_by_key(|(vid, d)| (OrderedFloat(*d), *vid));
         // TODO reorder
         reordered
+    }
+
+    pub fn search(
+        &self,
+        v: AbstractVector<[f32; SIZE]>,
+        sp: SearchParameters,
+    ) -> Vec<(VectorId, f32)> {
+        let raw_v = self.comparator.lookup_abstract(v.clone());
+        let quantized = self.quantizer.quantize(&raw_v);
+        let result = self.hnsw.search(AbstractVector::Unstored(&quantized), sp);
+        self.pq_to_natural_distance_queue(v, result)
     }
 
     pub fn improve_index(
@@ -473,12 +495,72 @@ impl<
         self.hnsw.zero_neighborhood_size()
     }
 
+    pub fn quantization_statistics(&self) -> QuantizationStatistics {
+        let c = self.quantized_comparator();
+        let quantized_vecs: Vec<_> = c.vecs().collect();
+        let quantizer = self.quantizer();
+        // sample_avg = sum(errors)/|errors|
+        // sample_var = sum((error - sample_avg)^2)/|errors|
+
+        let fc = self.full_comparator();
+        let sample_size = estimate_sample_size(0.95, fc.num_vecs());
+        let reconstruction_error = vec![0.0_f32; sample_size];
+        eprintln!("starting processing of vector chunks");
+        fc.selection_with_id(sample_size)
+            .into_par_iter()
+            .map(|(vecid, full_vec)| (full_vec, &quantized_vecs[vecid.0]))
+            .map(|(full_vec, quantized_vec)| {
+                let reconstructed = quantizer.reconstruct(quantized_vec);
+
+                fc.compare_raw(&full_vec, &reconstructed)
+            })
+            .enumerate()
+            .for_each(|(ix, distance)| unsafe {
+                let ptr = reconstruction_error.as_ptr().add(ix) as *mut f32;
+                *ptr = distance;
+            });
+
+        let sample_avg: f32 =
+            reconstruction_error.iter().sum::<f32>() / reconstruction_error.len() as f32;
+        let sample_var = reconstruction_error
+            .iter()
+            .map(|e| (e - sample_avg))
+            .map(|x| x * x)
+            .sum::<f32>()
+            / (reconstruction_error.len() - 1) as f32;
+        let sample_deviation = sample_var.sqrt();
+
+        QuantizationStatistics {
+            sample_avg,
+            sample_var,
+            sample_deviation,
+        }
+    }
+
     pub fn threshold_nn(
         &self,
         threshold: f32,
         search_parameters: SearchParameters,
     ) -> impl IndexedParallelIterator<Item = (VectorId, Vec<(VectorId, f32)>)> + '_ {
-        self.hnsw.threshold_nn(threshold, search_parameters)
+        let QuantizationStatistics {
+            sample_avg,
+            sample_deviation,
+            ..
+        } = self.quantization_statistics();
+        eprintln!("threshold: {threshold}");
+        let threshold = threshold + sample_avg + 2.0 * sample_deviation;
+        eprintln!("sample_avg: {sample_avg}");
+        eprintln!("sample_deviation: {sample_deviation}");
+        eprintln!("recalculated threshold: {threshold}");
+
+        self.hnsw
+            .threshold_nn(threshold, search_parameters)
+            .map(|(vid, queue)| {
+                (
+                    vid,
+                    self.pq_to_natural_distance_queue(AbstractVector::Stored(vid), queue),
+                )
+            })
     }
 
     pub fn stochastic_recall(&self, optimization_parameters: OptimizationParameters) -> f32 {

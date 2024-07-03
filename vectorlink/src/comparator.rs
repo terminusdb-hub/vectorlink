@@ -97,11 +97,19 @@ impl Serializable for DiskOpenAIComparator {
 impl pq::VectorSelector for DiskOpenAIComparator {
     type T = Embedding;
 
-    fn selection(&self, size: usize) -> Vec<Self::T> {
+    fn selection_with_id(&self, size: usize) -> Vec<(VectorId, Self::T)> {
         let num_vecs = self.vectors.num_vecs();
         if size as f32 >= 0.3 * num_vecs as f32 {
             let upper_bound = std::cmp::min(size, num_vecs);
-            let mut result = self.vectors.all_vectors().unwrap().vecs().to_vec();
+            let mut result: Vec<_> = self
+                .vectors
+                .all_vectors()
+                .unwrap()
+                .vecs()
+                .iter()
+                .enumerate()
+                .map(|(i, s)| (VectorId(i), *s))
+                .collect();
             let mut rng = thread_rng();
             result.shuffle(&mut rng);
             result.truncate(upper_bound);
@@ -119,7 +127,7 @@ impl pq::VectorSelector for DiskOpenAIComparator {
         }
 
         set.into_iter()
-            .map(|index| self.vectors.vec(index).unwrap())
+            .map(|index| (VectorId(index), self.vectors.vec(index).unwrap()))
             .collect()
     }
 
@@ -200,10 +208,18 @@ impl Serializable for Disk1024Comparator {
 impl pq::VectorSelector for Disk1024Comparator {
     type T = Embedding1024;
 
-    fn selection(&self, size: usize) -> Vec<Self::T> {
+    fn selection_with_id(&self, size: usize) -> Vec<(VectorId, Self::T)> {
         // TODO do something else for sizes close to number of vecs
         if size >= self.vectors.num_vecs() {
-            return self.vectors.all_vectors().unwrap().vecs().to_vec();
+            return self
+                .vectors
+                .all_vectors()
+                .unwrap()
+                .vecs()
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| (VectorId(i), *v))
+                .collect();
         }
         let mut rng = thread_rng();
         let mut set = HashSet::new();
@@ -214,7 +230,7 @@ impl pq::VectorSelector for Disk1024Comparator {
         }
 
         set.into_iter()
-            .map(|index| self.vectors.vec(index).unwrap())
+            .map(|index| (VectorId(index), self.vectors.vec(index).unwrap()))
             .collect()
     }
 
@@ -801,6 +817,10 @@ impl pq::VectorStore for Quantized32Comparator {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 #[derive(Clone)]
@@ -906,6 +926,10 @@ impl pq::VectorStore for Quantized16Comparator1024 {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 #[derive(Clone)]
@@ -1007,12 +1031,16 @@ impl pq::VectorStore for Quantized8Comparator1024 {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 impl pq::VectorSelector for OpenAIComparator {
     type T = Embedding;
 
-    fn selection(&self, size: usize) -> Vec<Self::T> {
+    fn selection_with_id(&self, size: usize) -> Vec<(VectorId, Self::T)> {
         // TODO do something else for sizes close to number of vecs
         let mut rng = thread_rng();
         let mut set = HashSet::new();
@@ -1022,7 +1050,9 @@ impl pq::VectorSelector for OpenAIComparator {
             set.insert(candidate);
         }
 
-        set.into_iter().map(|index| self.range[index]).collect()
+        set.into_iter()
+            .map(|index| (VectorId(index), self.range[index]))
+            .collect()
     }
 
     fn vector_chunks(&self) -> impl Iterator<Item = Vec<Self::T>> {
@@ -1110,6 +1140,10 @@ impl pq::VectorStore for Quantized16Comparator {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 impl Comparator for Quantized8Comparator
@@ -1187,6 +1221,10 @@ impl pq::VectorStore for Quantized8Comparator {
 
         vectors
     }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
+    }
 }
 
 impl Comparator for Quantized4Comparator
@@ -1263,6 +1301,10 @@ impl pq::VectorStore for Quantized4Comparator {
         self.data = Arc::new(data);
 
         vectors
+    }
+
+    fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+        self.data.vecs().iter()
     }
 }
 
