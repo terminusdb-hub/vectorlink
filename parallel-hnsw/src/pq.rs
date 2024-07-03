@@ -508,20 +508,17 @@ impl<
         let reconstruction_error = vec![0.0_f32; sample_size];
         eprintln!("reconstruction_error: {reconstruction_error:?}");
         eprintln!("starting processing of vector chunks");
-        fc.selection_with_id(sample_size)
+        let reconstruction_error: Vec<_> = fc
+            .selection_with_id(sample_size)
             .into_par_iter()
             .map(|(vecid, full_vec)| (full_vec, &quantized_vecs[vecid.0]))
             .map(|(full_vec, quantized_vec)| {
                 let reconstructed = quantizer.reconstruct(quantized_vec);
                 let dist = fc.compare_raw(&full_vec, &reconstructed);
                 eprintln!("reconstructing distance: {dist} for {full_vec:?}");
+                dist
             })
-            .enumerate()
-            .for_each(|(ix, distance)| unsafe {
-                eprintln!("at ix: {ix}");
-                let ptr = reconstruction_error.as_ptr().add(ix) as *mut f32;
-                *ptr = distance;
-            });
+            .collect();
 
         let sample_avg: f32 =
             reconstruction_error.iter().sum::<f32>() / reconstruction_error.len() as f32;
