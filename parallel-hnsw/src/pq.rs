@@ -504,20 +504,13 @@ impl<
 
         let fc = self.full_comparator();
         let sample_size = estimate_sample_size(0.95, fc.num_vecs());
-        eprintln!("sample size: {sample_size}");
-        eprintln!("starting processing of vector chunks");
         let reconstruction_error: Vec<_> = fc
             .selection_with_id(sample_size)
             .into_par_iter()
             .map(|(vecid, full_vec)| (full_vec, &quantized_vecs[vecid.0]))
             .map(|(full_vec, quantized_vec)| {
                 let reconstructed = quantizer.reconstruct(quantized_vec);
-                let res = reconstructed.iter().all(|x| *x == 0.0);
-                eprintln!("All zeros?: {res}");
-                eprintln!("Equal?: {}", full_vec == reconstructed);
-                let dist = fc.compare_raw(&full_vec, &reconstructed);
-                eprintln!("reconstructing distance: {dist}");
-                dist
+                fc.compare_raw(&full_vec, &reconstructed)
             })
             .collect();
 
