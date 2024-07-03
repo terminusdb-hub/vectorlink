@@ -505,8 +505,6 @@ impl<
         let fc = self.full_comparator();
         let sample_size = estimate_sample_size(0.95, fc.num_vecs());
         eprintln!("sample size: {sample_size}");
-        let reconstruction_error = vec![0.0_f32; sample_size];
-        eprintln!("reconstruction_error: {reconstruction_error:?}");
         eprintln!("starting processing of vector chunks");
         let reconstruction_error: Vec<_> = fc
             .selection_with_id(sample_size)
@@ -519,6 +517,7 @@ impl<
                 dist
             })
             .collect();
+        eprintln!("reconstruction_error: {reconstruction_error:?}");
 
         let sample_avg: f32 =
             reconstruction_error.iter().sum::<f32>() / reconstruction_error.len() as f32;
