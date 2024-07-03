@@ -23,7 +23,7 @@
       nixpkgsFor = forAllSystems (system:
         (import nixpkgs) {
           inherit system;
-          config = { allowUnfree = true; cudaSupport = true; cudaVersion = "12"; };
+          config = { allowUnfree = true; cudaEnabled = true; cudaSupport = true;};
           overlays = [
             (import rust-overlay)
             (final: prev: {
@@ -77,6 +77,7 @@
       devShells = forAllSystems (system :
         let pkgs = nixpkgsFor.${system};in
         {
+          default = pkgs.callPackage ./shell.nix {};
           rust-shell = pkgs.callPackage nix/rust-shell.nix {};
           manage-shell = pkgs.callPackage nix/manage-shell.nix {};
           python-task-shell = pkgs.callPackage nix/python-task-shell.nix {};
