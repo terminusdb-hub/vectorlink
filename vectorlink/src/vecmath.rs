@@ -149,16 +149,32 @@ pub fn euclidean_partial_distance_32(v1: &Centroid32, v2: &Centroid32) -> f32 {
     simd::euclidean_partial_distance_32_simd(v1, v2)
 }
 
+pub fn euclidean_partial_norm_32(v: &Centroid32) -> f32 {
+    simd::euclidean_partial_norm_32_simd(v)
+}
+
 pub fn euclidean_distance_16(v1: &Centroid16, v2: &Centroid16) -> f32 {
     simd::euclidean_distance_16_simd(v1, v2)
+}
+
+pub fn euclidean_partial_norm_16(v: &Centroid16) -> f32 {
+    simd::euclidean_partial_norm_16_simd(v)
 }
 
 pub fn euclidean_partial_distance_4(v1: &Centroid4, v2: &Centroid4) -> f32 {
     simd::euclidean_partial_distance_4_simd(v1, v2)
 }
 
+pub fn euclidean_partial_norm_4(v: &Centroid4) -> f32 {
+    simd::euclidean_partial_norm_4_simd(v)
+}
+
 pub fn euclidean_partial_distance_8(v1: &Centroid8, v2: &Centroid8) -> f32 {
     simd::euclidean_partial_distance_8_simd(v1, v2)
+}
+
+pub fn euclidean_partial_norm_8(v: &Centroid8) -> f32 {
+    simd::euclidean_partial_norm_8_simd(v)
 }
 
 pub fn euclidean_partial_distance_16(v1: &Centroid16, v2: &Centroid16) -> f32 {
@@ -176,6 +192,10 @@ impl DistanceCalculator for EuclideanDistance32 {
 
     fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
         euclidean_partial_distance_32(left, right)
+    }
+
+    fn partial_norm(&self, vec: &Self::T) -> f32 {
+        euclidean_partial_norm_32(vec)
     }
 
     fn finalize_partial_distance(&self, distance: f32) -> f32 {
@@ -196,6 +216,10 @@ impl DistanceCalculator for EuclideanDistance16 {
 
     fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
         euclidean_partial_distance_16(left, right)
+    }
+
+    fn partial_norm(&self, vec: &Self::T) -> f32 {
+        euclidean_partial_norm_16(vec)
     }
 
     fn finalize_partial_distance(&self, distance: f32) -> f32 {
@@ -228,6 +252,10 @@ impl DistanceCalculator for EuclideanDistance16For1024 {
             unsafe { &*(distances.as_ptr() as *const [f32; QUANTIZED_16_EMBEDDING_LENGTH_1024]) };
         simd::sum_64(cast).sqrt()
     }
+
+    fn partial_norm(&self, vec: &Self::T) -> f32 {
+        euclidean_partial_norm_16(vec)
+    }
 }
 
 #[derive(Default)]
@@ -247,6 +275,10 @@ impl DistanceCalculator for EuclideanDistance8 {
         assert!(distances.len() == QUANTIZED_8_EMBEDDING_LENGTH);
         let cast = unsafe { &*(distances.as_ptr() as *const [f32; QUANTIZED_8_EMBEDDING_LENGTH]) };
         simd::sum_192(cast).sqrt()
+    }
+
+    fn partial_norm(&self, vec: &Self::T) -> f32 {
+        euclidean_partial_norm_8(vec)
     }
 }
 
@@ -268,6 +300,9 @@ impl DistanceCalculator for EuclideanDistance8For1024 {
         let cast = unsafe { &*(distances.as_ptr() as *const [f32; QUANTIZED_8_EMBEDDING_LENGTH]) };
         simd::sum_192(cast).sqrt()
     }
+    fn partial_norm(&self, vec: &Self::T) -> f32 {
+        euclidean_partial_norm_8(vec)
+    }
 }
 
 #[derive(Default)]
@@ -287,6 +322,10 @@ impl DistanceCalculator for EuclideanDistance4 {
         assert!(distances.len() == QUANTIZED_4_EMBEDDING_LENGTH);
         let cast = unsafe { &*(distances.as_ptr() as *const [f32; QUANTIZED_4_EMBEDDING_LENGTH]) };
         simd::sum_384(cast).sqrt()
+    }
+
+    fn partial_norm(&self, vec: &Self::T) -> f32 {
+        euclidean_partial_norm_4(vec)
     }
 }
 
@@ -392,6 +431,15 @@ pub mod simd {
         sum.reduce_sum()
     }
 
+    pub fn euclidean_partial_norm_32_simd(vec: &Centroid32) -> f32 {
+        let mut sum = <f32x16>::splat(0.);
+        let v = <f32x16>::from_slice(&vec[0..16]);
+        sum += v * v;
+        let v = <f32x16>::from_slice(&vec[16..32]);
+        sum += v * v;
+        sum.reduce_sum()
+    }
+
     pub fn euclidean_distance_16_simd(left: &Centroid16, right: &Centroid16) -> f32 {
         euclidean_partial_distance_16_simd(left, right).sqrt()
     }
@@ -405,6 +453,13 @@ pub mod simd {
         sum.reduce_sum()
     }
 
+    pub fn euclidean_partial_norm_4_simd(vec: &Centroid4) -> f32 {
+        let mut sum = <f32x16>::splat(0.);
+        let v = <f32x16>::from_slice(&vec[0..4]);
+        sum += v * v;
+        sum.reduce_sum()
+    }
+
     pub fn euclidean_partial_distance_8_simd(left: &Centroid8, right: &Centroid8) -> f32 {
         let mut sum = <f32x8>::splat(0.);
         let l = <f32x8>::from_slice(&left[0..8]);
@@ -414,12 +469,26 @@ pub mod simd {
         sum.reduce_sum()
     }
 
+    pub fn euclidean_partial_norm_8_simd(vec: &Centroid8) -> f32 {
+        let mut sum = <f32x16>::splat(0.);
+        let v = <f32x16>::from_slice(&vec[0..8]);
+        sum += v * v;
+        sum.reduce_sum()
+    }
+
     pub fn euclidean_partial_distance_16_simd(left: &Centroid16, right: &Centroid16) -> f32 {
         let mut sum = <f32x16>::splat(0.);
         let l = <f32x16>::from_slice(&left[0..16]);
         let r = <f32x16>::from_slice(&right[0..16]);
         let res = (l - r);
         sum += res * res;
+        sum.reduce_sum()
+    }
+
+    pub fn euclidean_partial_norm_16_simd(vec: &Centroid16) -> f32 {
+        let mut sum = <f32x16>::splat(0.);
+        let v = <f32x16>::from_slice(&vec[0..16]);
+        sum += v * v;
         sum.reduce_sum()
     }
 
