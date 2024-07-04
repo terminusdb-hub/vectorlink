@@ -1024,6 +1024,10 @@ impl<C: Comparator + 'static> Hnsw<C> {
             let distances: Vec<_> = pq
                 .iter()
                 .filter(|(n, _)| *n != node)
+                .map(|p| {
+                    eprintln!("With a distance: {}", p.1);
+                    p
+                })
                 .take_while(|(_n, distance)| *distance < threshold)
                 .map(|(node_id, distance)| (layer.get_vector(node_id), distance))
                 .collect();
