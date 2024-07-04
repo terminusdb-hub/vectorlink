@@ -878,14 +878,19 @@ where
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
         let mut partial_distances = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH_1024];
+        let mut partial_norm_1 = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH_1024];
+        let mut partial_norm_2 = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH_1024];
         for ix in 0..QUANTIZED_16_EMBEDDING_LENGTH_1024 {
             let partial_1 = v1[ix];
             let partial_2 = v2[ix];
             let partial_distance = self.cc.partial_distance(partial_1, partial_2);
             partial_distances[ix] = partial_distance;
+            partial_norm_1[ix] = self.cc.distances.partial_norm(partial_1);
+            partial_norm_2[ix] = self.cc.distances.partial_norm(partial_2);
         }
-
-        vecmath::sum_64(&partial_distances).sqrt()
+        let norm_1 = vecmath::sum_64(&partial_norm_1).sqrt();
+        let norm_2 = vecmath::sum_64(&partial_norm_2).sqrt();
+        vecmath::sum_64(&partial_distances).sqrt() / (norm_1 * norm_2)
     }
 }
 
@@ -1100,14 +1105,19 @@ where
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
         let mut partial_distances = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH];
+        let mut partial_norm_1 = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH];
+        let mut partial_norm_2 = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH];
         for ix in 0..QUANTIZED_16_EMBEDDING_LENGTH {
             let partial_1 = v1[ix];
             let partial_2 = v2[ix];
             let partial_distance = self.cc.partial_distance(partial_1, partial_2);
             partial_distances[ix] = partial_distance;
+            partial_norm_1[ix] = self.cc.distances.partial_norm(partial_1);
+            partial_norm_2[ix] = self.cc.distances.partial_norm(partial_2);
         }
-
-        vecmath::sum_96(&partial_distances).sqrt()
+        let norm_1 = vecmath::sum_96(&partial_norm_1).sqrt();
+        let norm_2 = vecmath::sum_96(&partial_norm_2).sqrt();
+        vecmath::sum_96(&partial_distances).sqrt() / (norm_1 * norm_2)
     }
 }
 
