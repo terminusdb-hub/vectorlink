@@ -545,7 +545,7 @@ impl<
         let new_threshold = threshold + sample_avg + 2.0 * sample_deviation;
         eprintln!("sample_avg: {sample_avg}");
         eprintln!("sample_deviation: {sample_deviation}");
-        eprintln!("recalculated threshold: {threshold}");
+        eprintln!("recalculated threshold: {new_threshold}");
 
         self.hnsw
             .threshold_nn(new_threshold, search_parameters)
