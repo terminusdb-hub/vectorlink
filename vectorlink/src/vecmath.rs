@@ -84,7 +84,7 @@ pub fn clamp_01(f: f32) -> f32 {
     f.clamp(0.0, 1.0)
 }
 
-fn normalize_cosine_distance(f: f32) -> f32 {
+pub fn normalize_cosine_distance(f: f32) -> f32 {
     clamp_01((f - 1.0) / -2.0)
 }
 

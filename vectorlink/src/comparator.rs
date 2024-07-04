@@ -18,9 +18,9 @@ use vectorlink_store::range::LoadedSizedVectorRange;
 use parallel_hnsw::{pq, Comparator, Serializable, SerializationError, VectorId};
 
 use crate::vecmath::{
-    self, normalized_cosine_distance_1024, Embedding1024, EuclideanDistance16,
-    EuclideanDistance16For1024, EuclideanDistance32, EuclideanDistance4, EuclideanDistance8,
-    EuclideanDistance8For1024, Quantized16Embedding, Quantized16Embedding1024,
+    self, normalize_cosine_distance, normalized_cosine_distance_1024, Embedding1024,
+    EuclideanDistance16, EuclideanDistance16For1024, EuclideanDistance32, EuclideanDistance4,
+    EuclideanDistance8, EuclideanDistance8For1024, Quantized16Embedding, Quantized16Embedding1024,
     Quantized32Embedding, Quantized4Embedding, Quantized8Embedding, Quantized8Embedding1024,
     CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH, CENTROID_8_LENGTH,
     QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH_1024,
@@ -890,7 +890,7 @@ where
         }
         let norm_1 = vecmath::sum_64(&partial_norm_1).sqrt();
         let norm_2 = vecmath::sum_64(&partial_norm_2).sqrt();
-        vecmath::sum_64(&partial_distances).sqrt() / (norm_1 * norm_2)
+        normalize_cosine_distance(vecmath::sum_64(&partial_distances).sqrt() / (norm_1 * norm_2))
     }
 }
 
@@ -1004,7 +1004,7 @@ where
         }
         let norm_1 = vecmath::sum_128(&partial_norm_1).sqrt();
         let norm_2 = vecmath::sum_128(&partial_norm_2).sqrt();
-        vecmath::sum_128(&partial_distances).sqrt() / (norm_1 * norm_2)
+        normalize_cosine_distance(vecmath::sum_128(&partial_distances).sqrt() / (norm_1 * norm_2))
     }
 }
 
@@ -1117,7 +1117,7 @@ where
         }
         let norm_1 = vecmath::sum_96(&partial_norm_1).sqrt();
         let norm_2 = vecmath::sum_96(&partial_norm_2).sqrt();
-        vecmath::sum_96(&partial_distances).sqrt() / (norm_1 * norm_2)
+        normalize_cosine_distance(vecmath::sum_96(&partial_distances).sqrt() / (norm_1 * norm_2))
     }
 }
 
