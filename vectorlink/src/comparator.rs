@@ -18,12 +18,12 @@ use vectorlink_store::range::LoadedSizedVectorRange;
 use parallel_hnsw::{pq, Comparator, Serializable, SerializationError, VectorId};
 
 use crate::vecmath::{
-    self, normalize_cosine_distance, normalized_cosine_distance_1024, Embedding1024,
-    EuclideanDistance16, EuclideanDistance16For1024, EuclideanDistance32, EuclideanDistance4,
-    EuclideanDistance8, EuclideanDistance8For1024, Quantized16Embedding, Quantized16Embedding1024,
-    Quantized32Embedding, Quantized4Embedding, Quantized8Embedding, Quantized8Embedding1024,
-    CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH, CENTROID_8_LENGTH,
-    QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH_1024,
+    self, normalize_cosine_distance, normalized_cosine_distance_1024, CosineDistance16For1024,
+    Embedding1024, EuclideanDistance16, EuclideanDistance16For1024, EuclideanDistance32,
+    EuclideanDistance4, EuclideanDistance8, EuclideanDistance8For1024, Quantized16Embedding,
+    Quantized16Embedding1024, Quantized32Embedding, Quantized4Embedding, Quantized8Embedding,
+    Quantized8Embedding1024, CENTROID_16_LENGTH, CENTROID_32_LENGTH, CENTROID_4_LENGTH,
+    CENTROID_8_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH_1024,
     QUANTIZED_32_EMBEDDING_LENGTH, QUANTIZED_4_EMBEDDING_LENGTH, QUANTIZED_8_EMBEDDING_LENGTH,
     QUANTIZED_8_EMBEDDING_LENGTH_1024,
 };
@@ -544,7 +544,7 @@ pub type Centroid8Comparator1024 =
     ArrayCentroidComparator<CENTROID_8_LENGTH, EuclideanDistance8For1024>;
 pub type Centroid16Comparator = ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16>;
 pub type Centroid16Comparator1024 =
-    ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16For1024>;
+    ArrayCentroidComparator<CENTROID_16_LENGTH, CosineDistance16For1024>;
 pub type Centroid32Comparator = ArrayCentroidComparator<CENTROID_32_LENGTH, EuclideanDistance32>;
 
 impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default + Sync>
@@ -877,20 +877,21 @@ where
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
-        let mut partial_distances = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH_1024];
-        let mut partial_norm_1 = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH_1024];
-        let mut partial_norm_2 = [0.0_f32; QUANTIZED_16_EMBEDDING_LENGTH_1024];
+        let mut partial_distances = 0.0_f32;
+        let mut partial_norm_1 = 0.0_f32;
+        let mut partial_norm_2 = 0.0_f32;
         for ix in 0..QUANTIZED_16_EMBEDDING_LENGTH_1024 {
             let partial_1 = v1[ix];
             let partial_2 = v2[ix];
             let partial_distance = self.cc.partial_distance(partial_1, partial_2);
-            partial_distances[ix] = partial_distance;
-            partial_norm_1[ix] = self.cc.distances.partial_norm(partial_1);
-            partial_norm_2[ix] = self.cc.distances.partial_norm(partial_2);
+            partial_distances += partial_distance;
+            partial_norm_1 += self.cc.distances.partial_norm(partial_1);
+            partial_norm_2 += self.cc.distances.partial_norm(partial_2);
         }
-        let norm_1 = vecmath::sum_64(&partial_norm_1).sqrt();
-        let norm_2 = vecmath::sum_64(&partial_norm_2).sqrt();
-        normalize_cosine_distance(vecmath::sum_64(&partial_distances).sqrt() / (norm_1 * norm_2))
+        let norm_1 = partial_norm_1.sqrt();
+        let norm_2 = partial_norm_2.sqrt();
+        let dot_product = partial_distances.sqrt();
+        normalize_cosine_distance(partial_distances.sqrt() / (norm_1 * norm_2))
     }
 }
 
