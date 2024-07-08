@@ -1008,7 +1008,6 @@ impl<C: Comparator + 'static> Hnsw<C> {
             pq.merge_pairs(&[(node, 0.0)]);
             let mut last = 0.0;
             let mut last_size = 0;
-            eprintln!("last: {last}");
             while last < threshold && pq.len() > last_size {
                 last_size = pq.len();
                 layer.closest_nodes(

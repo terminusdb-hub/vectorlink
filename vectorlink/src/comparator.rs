@@ -877,6 +877,7 @@ where
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
+        eprintln!(".");
         let mut partial_distances = 0.0_f32;
         let mut partial_norm_1 = 0.0_f32;
         let mut partial_norm_2 = 0.0_f32;
