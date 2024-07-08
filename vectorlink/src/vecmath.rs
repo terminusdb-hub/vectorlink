@@ -273,7 +273,6 @@ impl DistanceCalculator for CosineDistance16For1024 {
 
     fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
         let dist = cosine_partial_distance_16(left, right);
-        eprintln!("partial distance {dist}");
         dist
     }
 
