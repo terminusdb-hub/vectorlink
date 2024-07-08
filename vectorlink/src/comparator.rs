@@ -492,7 +492,10 @@ impl MemoizedPartialDistances {
         unsafe {
             partial_distances.set_len(memoized_array_length);
         }
-        let partial_norms: Vec<_> = vectors.iter().map(|x| bf16::from_f32(norm)).collect();
+        let partial_norms: Vec<_> = vectors
+            .iter()
+            .map(|x| bf16::from_f32(partial_distance_calculator.partial_norm(x)))
+            .collect();
         Self {
             partial_distances,
             size,
