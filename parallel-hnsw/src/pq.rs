@@ -558,12 +558,10 @@ impl<
         search_parameters: SearchParameters,
     ) -> impl IndexedParallelIterator<Item = (VectorId, Vec<(VectorId, f32)>)> + '_ {
         let QuantizationStatistics {
-            sample_avg,
-            sample_deviation,
-            ..
+            sample_deviation, ..
         } = self.quantization_statistics();
         eprintln!("threshold: {threshold}");
-        let new_threshold = threshold + sample_avg + 2.0 * sample_deviation;
+        let new_threshold = threshold + 2.0 * sample_deviation;
         eprintln!("sample_avg: {sample_avg}");
         eprintln!("sample_deviation: {sample_deviation}");
         eprintln!("recalculated threshold: {new_threshold}");
