@@ -891,7 +891,7 @@ where
         let norm_1 = partial_norm_1.sqrt();
         let norm_2 = partial_norm_2.sqrt();
         let dot_product = partial_distances.sqrt();
-        normalize_cosine_distance(partial_distances.sqrt() / (norm_1 * norm_2))
+        normalize_cosine_distance(dot_product / (norm_1 * norm_2))
     }
 }
 
