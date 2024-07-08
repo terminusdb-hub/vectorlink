@@ -81,9 +81,6 @@ pub fn random_normalized_embedding<R: Rng>(rng: &mut R) -> Embedding {
 
 #[inline]
 pub fn clamp_01(f: f32) -> f32 {
-    if !(0.0..=1.0).contains(&f) {
-        eprintln!("f: {f}");
-    }
     f.clamp(0.0, 1.0)
 }
 

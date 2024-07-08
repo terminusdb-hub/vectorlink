@@ -121,15 +121,17 @@ enum Commands {
         #[arg(short, long, value_enum, default_value_t = Model::Ada2)]
         model: Model,
     },
-    Compare {
+    CompareQuantized {
         #[arg(short, long)]
-        key: Option<String>,
+        commit: String,
         #[arg(long)]
-        s1: String,
+        domain: String,
+        #[arg(short, long)]
+        directory: String,
         #[arg(long)]
-        s2: String,
-        #[arg(short, long, value_enum, default_value_t = Model::Ada2)]
-        model: Model,
+        v1: usize,
+        #[arg(long)]
+        v2: usize,
     },
     Compare2 {
         #[arg(short, long)]
@@ -363,8 +365,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .0;
             eprintln!("{:?}", v);
         }
-        Commands::Compare { .. } => {
-            todo!();
+        Commands::CompareQuantized {
+            v1,
+            v2,
+            commit,
+            domain,
+            directory,
+        } => {
+            let dirpath = Path::new(&directory);
+            let hnsw_index_path = dbg!(format!(
+                "{}/{}.hnsw",
+                directory,
+                create_index_name(&domain, &commit)
+            ));
+            let store = VectorStore::new(dirpath, 1234);
+            let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
+            let res = match hnsw {
+                HnswConfiguration::QuantizedOpenAi(_, _) => todo!(),
+                HnswConfiguration::SmallQuantizedOpenAi(_, _) => todo!(),
+                HnswConfiguration::SmallQuantizedOpenAi8(_, _) => todo!(),
+                HnswConfiguration::SmallQuantizedOpenAi4(_, _) => todo!(),
+                HnswConfiguration::UnquantizedOpenAi(_, _) => todo!(),
+                HnswConfiguration::Quantized1024By16(_, q) => q.compare(v1, v2),
+            };
+            eprintln!("result: {res:?}");
         }
         Commands::Compare2 {
             key,

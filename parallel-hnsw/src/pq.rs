@@ -23,6 +23,12 @@ pub struct QuantizationStatistics {
     pub sample_deviation: f32,
 }
 
+#[derive(Debug)]
+pub struct QuantizedCompare {
+    pub quantized: f32,
+    pub unquantized: f32,
+}
+
 pub trait Quantizer<const SIZE: usize, const QUANTIZED_SIZE: usize> {
     fn quantize(&self, vec: &[f32; SIZE]) -> [u16; QUANTIZED_SIZE];
     fn reconstruct(&self, qvec: &[u16; QUANTIZED_SIZE]) -> [f32; SIZE];
@@ -493,6 +499,21 @@ impl<
 
     pub fn zero_neighborhood_size(&self) -> usize {
         self.hnsw.zero_neighborhood_size()
+    }
+
+    pub fn compare(&self, v1: usize, v2: usize) -> QuantizedCompare {
+        let c = self.quantized_comparator();
+        let fc = self.full_comparator();
+        QuantizedCompare {
+            unquantized: fc.compare_vec(
+                AbstractVector::Stored(VectorId(v1)),
+                AbstractVector::Stored(VectorId(v2)),
+            ),
+            quantized: c.compare_vec(
+                AbstractVector::Stored(VectorId(v1)),
+                AbstractVector::Stored(VectorId(v2)),
+            ),
+        }
     }
 
     pub fn quantization_statistics(&self) -> QuantizationStatistics {
