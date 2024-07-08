@@ -272,7 +272,9 @@ impl DistanceCalculator for CosineDistance16For1024 {
     type T = Centroid16;
 
     fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
-        cosine_partial_distance_16(left, right)
+        let dist = cosine_partial_distance_16(left, right);
+        eprintln!("partial distance {dist}");
+        dist
     }
 
     fn finalize_partial_distance(&self, distance: f32) -> f32 {
@@ -287,7 +289,9 @@ impl DistanceCalculator for CosineDistance16For1024 {
     }
 
     fn partial_norm(&self, vec: &Self::T) -> f32 {
-        cosine_partial_norm_16(vec)
+        let norm = cosine_partial_norm_16(vec);
+        eprintln!("partial norm {norm}");
+        norm
     }
 }
 

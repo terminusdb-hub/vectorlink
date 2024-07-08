@@ -492,10 +492,7 @@ impl MemoizedPartialDistances {
         unsafe {
             partial_distances.set_len(memoized_array_length);
         }
-        let partial_norms: Vec<_> = vectors
-            .iter()
-            .map(|x| bf16::from_f32(partial_distance_calculator.partial_norm(x)))
-            .collect();
+        let partial_norms: Vec<_> = vectors.iter().map(|x| bf16::from_f32(norm)).collect();
         Self {
             partial_distances,
             size,
@@ -877,7 +874,6 @@ where
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
-        eprintln!(".");
         let mut partial_distances = 0.0_f32;
         let mut partial_norm_1 = 0.0_f32;
         let mut partial_norm_2 = 0.0_f32;
