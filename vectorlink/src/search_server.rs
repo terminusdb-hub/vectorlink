@@ -14,7 +14,7 @@ use hyper::{
 };
 use parallel_hnsw::{AbstractVector, Serializable};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
@@ -52,10 +52,10 @@ fn ids_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
     Ok(result)
 }
 
-#[derive(Serialize)]
-struct MatchResult {
-    id: String,
-    distance: f32,
+#[derive(Serialize, Deserialize)]
+pub struct MatchResult {
+    pub id: String,
+    pub distance: f32,
 }
 
 pub async fn handle_request(

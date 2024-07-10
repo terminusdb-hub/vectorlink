@@ -45,6 +45,7 @@ use rayon::iter::Either;
 use rayon::prelude::*;
 
 use crate::batch::index_domain;
+use crate::search_server::MatchResult;
 use crate::vecmath::normalize_vec;
 use crate::vecmath::Embedding;
 
@@ -258,6 +259,14 @@ enum Commands {
         domain: String,
         #[arg(short, long, default_value_t = 10000)]
         size: usize,
+    },
+    Search {
+        #[arg(short, long)]
+        directory: String,
+        #[arg(short, long)]
+        commit: String,
+        #[arg(long)]
+        domain: String,
     },
     SearchServer {
         #[arg(short, long, default_value_t = 8080)]
@@ -768,6 +777,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .await
             .unwrap()
         }
+        Commands::Search {
+            directory,
+            commit,
+            domain,
+        } => {
+            // maybe send in search parameters
+            let dirpath = Path::new(&directory);
+            let hnsw_index_path = dbg!(format!(
+                "{}/{}.hnsw",
+                directory,
+                create_index_name(&domain, &commit)
+            ));
+            let store = VectorStore::new(dirpath, 1234);
+            let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
+            let mut stdin = std::io::stdin();
+            const VECTOR_COUNT: usize = 1024;
+            const VECTOR_SIZE: usize = std::mem::size_of::<f32>() * VECTOR_COUNT;
+            let mut buf: [u8; VECTOR_SIZE] = [0; VECTOR_SIZE];
+            stdin.read_exact(&mut buf).unwrap();
+            let sp = SearchParameters::default();
+            let mut vector: [f32; VECTOR_COUNT] = [0.0; 1024];
+            let slice =
+                unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const f32, VECTOR_COUNT) };
+            vector[0..VECTOR_COUNT].clone_from_slice(slice);
+
+            let results: Vec<MatchResult> = match hnsw {
+                HnswConfiguration::Quantized1024By16(_, q) => q
+                    .search(AbstractVector::Unstored(&vector), sp)
+                    .into_iter()
+                    .map(|x| MatchResult {
+                        id: x.0 .0.to_string(),
+                        distance: x.1,
+                    })
+                    .collect(),
+                _ => panic!(),
+            };
+
+            let stdout = std::io::stdout();
+            let json = serde_json::to_string(&results).unwrap();
+            let mut lock = stdout.lock();
+            writeln!(lock, "{}", json).unwrap();
+        }
         Commands::Scramble {
             vec_file,
             output_vecs,
@@ -792,7 +843,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 )
             };
 
-            std::fs::write(output_map, &remap_buf).unwrap();
+            std::fs::write(output_map, remap_buf).unwrap();
 
             let mut buf = vec![0; vector_byte_size];
             for (current, mapping) in remap.iter().enumerate() {
