@@ -810,7 +810,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 vector[0..VECTOR_COUNT].clone_from_slice(slice);
                 AbstractVector::Unstored(&vector)
             };
-            let sp = SearchParameters::default();
+            let mut sp = SearchParameters::default();
+            sp.number_of_candidates = 300;
             let results: Vec<MatchResult> = hnsw
                 .search_1024(abstract_vector, sp)
                 .into_iter()
