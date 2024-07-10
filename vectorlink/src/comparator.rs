@@ -521,34 +521,52 @@ impl MemoizedPartialDistances {
     }
 }
 
-pub struct ArrayCentroidComparator<const N: usize, C> {
+pub struct ArrayCentroidComparator<const N: usize, Centroid, Quantized> {
     distances: Arc<MemoizedPartialDistances>,
     centroids: Arc<LoadedSizedVectorRange<[f32; N]>>,
-    calculator: PhantomData<C>,
+    centroid_calculator: PhantomData<Centroid>,
+    quantized_calculator: PhantomData<Quantized>,
 }
 
-impl<const N: usize, C> Clone for ArrayCentroidComparator<N, C> {
+impl<const N: usize, C, Q> Clone for ArrayCentroidComparator<N, C, Q> {
     fn clone(&self) -> Self {
         Self {
             distances: self.distances.clone(),
             centroids: self.centroids.clone(),
-            calculator: PhantomData,
+            centroid_calculator: PhantomData,
+            quantized_calculator: PhantomData,
         }
     }
 }
-unsafe impl<const N: usize, C> Sync for ArrayCentroidComparator<N, C> {}
+unsafe impl<const N: usize, Centroid, Quantized> Sync
+    for ArrayCentroidComparator<N, Centroid, Quantized>
+{
+}
 
-pub type Centroid4Comparator = ArrayCentroidComparator<CENTROID_4_LENGTH, EuclideanDistance4>;
-pub type Centroid8Comparator = ArrayCentroidComparator<CENTROID_8_LENGTH, EuclideanDistance8>;
-pub type Centroid8Comparator1024 =
-    ArrayCentroidComparator<CENTROID_8_LENGTH, EuclideanDistance8For1024>;
-pub type Centroid16Comparator = ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16>;
-pub type Centroid16Comparator1024 =
-    ArrayCentroidComparator<CENTROID_16_LENGTH, CosineDistance16For1024>;
-pub type Centroid32Comparator = ArrayCentroidComparator<CENTROID_32_LENGTH, EuclideanDistance32>;
+pub type Centroid4Comparator =
+    ArrayCentroidComparator<CENTROID_4_LENGTH, EuclideanDistance4, EuclideanDistance4>;
+pub type Centroid8Comparator =
+    ArrayCentroidComparator<CENTROID_8_LENGTH, EuclideanDistance8, EuclideanDistance8>;
+pub type Centroid8Comparator1024 = ArrayCentroidComparator<
+    CENTROID_8_LENGTH,
+    EuclideanDistance8For1024,
+    EuclideanDistance8For1024,
+>;
+pub type Centroid16Comparator =
+    ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16, EuclideanDistance16>;
+pub type Centroid16Comparator1024 = ArrayCentroidComparator<
+    CENTROID_16_LENGTH,
+    EuclideanDistance16For1024,
+    CosineDistance16For1024,
+>;
+pub type Centroid32Comparator =
+    ArrayCentroidComparator<CENTROID_32_LENGTH, EuclideanDistance32, EuclideanDistance32>;
 
-impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default + Sync>
-    CentroidComparatorConstructor for ArrayCentroidComparator<SIZE, C>
+impl<
+        const SIZE: usize,
+        C: DistanceCalculator<T = [f32; SIZE]> + Default + Sync + 'static,
+        Q: DistanceCalculator<T = [f32; SIZE]> + Default + Sync,
+    > CentroidComparatorConstructor for ArrayCentroidComparator<SIZE, C, Q>
 {
     fn new(centroids: Vec<Self::T>) -> Self {
         let len = centroids.len();
@@ -558,36 +576,43 @@ impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default + Sync>
                 0..len,
                 centroids.into_boxed_slice(),
             )),
-            calculator: PhantomData,
+            centroid_calculator: PhantomData,
+            quantized_calculator: PhantomData,
         }
     }
 }
 
-impl<const SIZE: usize, C: DistanceCalculator<T = [f32; SIZE]> + Default> Comparator
-    for ArrayCentroidComparator<SIZE, C>
+impl<
+        const SIZE: usize,
+        CentroidDistance: DistanceCalculator<T = [f32; SIZE]> + Default + 'static,
+        QuantizedDistance: DistanceCalculator<T = [f32; SIZE]> + Default,
+    > Comparator for ArrayCentroidComparator<SIZE, CentroidDistance, QuantizedDistance>
 {
     type T = [f32; SIZE];
 
-    type Borrowable<'a> = &'a Self::T where C: 'a;
+    type Borrowable<'a> = &'a Self::T where QuantizedDistance: 'a;
 
     fn lookup(&self, v: VectorId) -> Self::Borrowable<'_> {
         &self.centroids[v.0]
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
-        let calculator = C::default();
+        let calculator = QuantizedDistance::default();
         calculator.distance(v1, v2)
     }
 }
 
-impl<const N: usize, C> PartialDistance for ArrayCentroidComparator<N, C> {
+impl<const N: usize, C, Q> PartialDistance for ArrayCentroidComparator<N, C, Q> {
     fn partial_distance(&self, i: u16, j: u16) -> f32 {
         self.distances.partial_distance(i, j)
     }
 }
 
-impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default + Sync> Serializable
-    for ArrayCentroidComparator<N, C>
+impl<
+        const N: usize,
+        C: DistanceCalculator<T = [f32; N]> + Default + Sync,
+        Q: DistanceCalculator<T = [f32; N]> + Default + Sync,
+    > Serializable for ArrayCentroidComparator<N, C, Q>
 {
     type Params = ();
 
@@ -613,7 +638,8 @@ impl<const N: usize, C: DistanceCalculator<T = [f32; N]> + Default + Sync> Seria
                 centroids.vecs(),
             )),
             centroids,
-            calculator: PhantomData,
+            centroid_calculator: PhantomData,
+            quantized_calculator: PhantomData,
         })
     }
 }
