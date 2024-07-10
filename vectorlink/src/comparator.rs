@@ -332,6 +332,10 @@ pub trait DistanceCalculator {
     fn distance(&self, left: &Self::T, right: &Self::T) -> f32 {
         self.finalize_partial_distance(self.partial_distance(left, right))
     }
+
+    fn auto_partial_distance(&self, _left: &Self::T) -> f32 {
+        0.0
+    }
 }
 
 // i < j, i != j
@@ -507,7 +511,7 @@ impl MemoizedPartialDistances {
         let offset = match i.cmp(&j) {
             std::cmp::Ordering::Equal => {
                 // Early bail
-                return 0.0;
+                return 1.0 / self.partial_norm(i).powi(2);
             }
             std::cmp::Ordering::Less => index_to_offset(self.size, i as usize, j as usize),
             std::cmp::Ordering::Greater => index_to_offset(self.size, j as usize, i as usize),
@@ -911,14 +915,16 @@ where
         for ix in 0..QUANTIZED_16_EMBEDDING_LENGTH_1024 {
             let partial_1 = v1[ix];
             let partial_2 = v2[ix];
-            let partial_distance = self.cc.partial_distance(partial_1, partial_2);
-            partial_distances += partial_distance;
+            partial_distances += self.cc.partial_distance(partial_1, partial_2);
             partial_norm_1 += self.cc.distances.partial_norm(partial_1);
             partial_norm_2 += self.cc.distances.partial_norm(partial_2);
         }
         let norm_1 = partial_norm_1.sqrt();
         let norm_2 = partial_norm_2.sqrt();
         let dot_product = partial_distances;
+        if dot_product == 0.0 || dot_product == -0.0 {
+            eprintln!("v1: {v1:?}, v2: {v2:?}");
+        }
         normalize_cosine_distance(dot_product / (norm_1 * norm_2))
     }
 }
@@ -1033,7 +1039,7 @@ where
         }
         let norm_1 = vecmath::sum_128(&partial_norm_1).sqrt();
         let norm_2 = vecmath::sum_128(&partial_norm_2).sqrt();
-        normalize_cosine_distance(vecmath::sum_128(&partial_distances).sqrt() / (norm_1 * norm_2))
+        normalize_cosine_distance(vecmath::sum_128(&partial_distances) / (norm_1 * norm_2))
     }
 }
 
@@ -1146,7 +1152,7 @@ where
         }
         let norm_1 = vecmath::sum_96(&partial_norm_1).sqrt();
         let norm_2 = vecmath::sum_96(&partial_norm_2).sqrt();
-        normalize_cosine_distance(vecmath::sum_96(&partial_distances).sqrt() / (norm_1 * norm_2))
+        normalize_cosine_distance(vecmath::sum_96(&partial_distances) / (norm_1 * norm_2))
     }
 }
 
