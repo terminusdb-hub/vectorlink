@@ -793,23 +793,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
             let mut stdin = std::io::stdin();
             const VECTOR_COUNT: usize = 1024;
-            const VECTOR_SIZE: usize = std::mem::size_of::<f32>() * VECTOR_COUNT;
-            let mut buf: [u8; VECTOR_SIZE] = [0; VECTOR_SIZE];
+            const VECTOR_BYTE_COUNT: usize = std::mem::size_of::<f32>() * VECTOR_COUNT;
+            let mut buf: [u8; VECTOR_BYTE_COUNT] = [0; VECTOR_BYTE_COUNT];
             stdin.read_exact(&mut buf).unwrap();
             let sp = SearchParameters::default();
             let mut vector: [f32; VECTOR_COUNT] = [0.0; 1024];
             let slice =
                 unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const f32, VECTOR_COUNT) };
             vector[0..VECTOR_COUNT].clone_from_slice(slice);
-
+            eprintln!("vector: {:?}", vector);
             let results: Vec<MatchResult> = match hnsw {
                 HnswConfiguration::Quantized1024By16(_, q) => q
                     .search(AbstractVector::Unstored(&vector), sp)
                     .into_iter()
-                    .map(|x| {
-                        eprintln!("Doing search printout!");
-                        x
-                    })
                     .map(|x| MatchResult {
                         id: x.0 .0.to_string(),
                         distance: x.1,
