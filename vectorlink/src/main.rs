@@ -801,7 +801,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let slice =
                 unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const f32, VECTOR_COUNT) };
             vector[0..VECTOR_COUNT].clone_from_slice(slice);
-            eprintln!("vector: {:?}", vector);
             let results: Vec<MatchResult> = match hnsw {
                 HnswConfiguration::Quantized1024By16(_, q) => q
                     .search(AbstractVector::Unstored(&vector), sp)

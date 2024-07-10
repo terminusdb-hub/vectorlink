@@ -83,6 +83,10 @@ impl Eq for OrderedFloat {}
 #[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for OrderedFloat {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        let res = self.partial_cmp(other);
+        if res.is_none() {
+            eprintln!("incomparable: {self:?} <> {other:?}");
+        };
+        res.unwrap()
     }
 }
