@@ -636,7 +636,7 @@ impl<
 
         Ok(Self {
             distances: Arc::new(MemoizedPartialDistances::new(
-                C::default(),
+                Q::default(),
                 centroids.vecs(),
             )),
             centroids,
