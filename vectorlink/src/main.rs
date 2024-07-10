@@ -35,6 +35,7 @@ use parallel_hnsw::pq::QuantizationStatistics;
 use parallel_hnsw::progress::SimpleProgressMonitor;
 use parallel_hnsw::AbstractVector;
 use parallel_hnsw::Serializable;
+use parallel_hnsw::VectorId;
 use rand::prelude::*;
 use std::fs::File;
 use std::io;
@@ -267,6 +268,8 @@ enum Commands {
         commit: String,
         #[arg(long)]
         domain: String,
+        #[arg(short, long)]
+        vid: Option<usize>,
     },
     SearchServer {
         #[arg(short, long, default_value_t = 8080)]
@@ -781,6 +784,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             directory,
             commit,
             domain,
+            vid,
         } => {
             // maybe send in search parameters
             let dirpath = Path::new(&directory);
@@ -791,27 +795,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, 1234);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
-            let mut stdin = std::io::stdin();
             const VECTOR_COUNT: usize = 1024;
-            const VECTOR_BYTE_COUNT: usize = std::mem::size_of::<f32>() * VECTOR_COUNT;
-            let mut buf: [u8; VECTOR_BYTE_COUNT] = [0; VECTOR_BYTE_COUNT];
-            stdin.read_exact(&mut buf).unwrap();
-            let sp = SearchParameters::default();
             let mut vector: [f32; VECTOR_COUNT] = [0.0; 1024];
-            let slice =
-                unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const f32, VECTOR_COUNT) };
-            vector[0..VECTOR_COUNT].clone_from_slice(slice);
-            let results: Vec<MatchResult> = match hnsw {
-                HnswConfiguration::Quantized1024By16(_, q) => q
-                    .search(AbstractVector::Unstored(&vector), sp)
-                    .into_iter()
-                    .map(|x| MatchResult {
-                        id: x.0 .0.to_string(),
-                        distance: x.1,
-                    })
-                    .collect(),
-                _ => panic!(),
+
+            let abstract_vector = if let Some(vid) = vid {
+                AbstractVector::Stored(VectorId(vid))
+            } else {
+                let mut stdin = std::io::stdin();
+                const VECTOR_BYTE_COUNT: usize = std::mem::size_of::<f32>() * VECTOR_COUNT;
+                let mut buf: [u8; VECTOR_BYTE_COUNT] = [0; VECTOR_BYTE_COUNT];
+                stdin.read_exact(&mut buf).unwrap();
+                let slice =
+                    unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const f32, VECTOR_COUNT) };
+                vector[0..VECTOR_COUNT].clone_from_slice(slice);
+                AbstractVector::Unstored(&vector)
             };
+            let sp = SearchParameters::default();
+            let results: Vec<MatchResult> = hnsw
+                .search_1024(abstract_vector, sp)
+                .into_iter()
+                .map(|x| MatchResult {
+                    id: x.0 .0.to_string(),
+                    distance: x.1,
+                })
+                .collect();
 
             let stdout = std::io::stdout();
             let json = serde_json::to_string(&results).unwrap();
