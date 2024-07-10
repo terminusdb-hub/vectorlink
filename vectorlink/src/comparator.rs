@@ -554,11 +554,13 @@ pub type Centroid8Comparator1024 = ArrayCentroidComparator<
 >;
 pub type Centroid16Comparator =
     ArrayCentroidComparator<CENTROID_16_LENGTH, EuclideanDistance16, EuclideanDistance16>;
+
 pub type Centroid16Comparator1024 = ArrayCentroidComparator<
     CENTROID_16_LENGTH,
     EuclideanDistance16For1024,
     CosineDistance16For1024,
 >;
+
 pub type Centroid32Comparator =
     ArrayCentroidComparator<CENTROID_32_LENGTH, EuclideanDistance32, EuclideanDistance32>;
 

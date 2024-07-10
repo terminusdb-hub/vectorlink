@@ -272,7 +272,7 @@ impl DistanceCalculator for CosineDistance16For1024 {
     type T = Centroid16;
 
     fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
-        cosine_partial_distance_16(left, right)
+        dbg!(cosine_partial_distance_16(left, right))
     }
 
     fn finalize_partial_distance(&self, distance: f32) -> f32 {
