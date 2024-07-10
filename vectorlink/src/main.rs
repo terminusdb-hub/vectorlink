@@ -806,6 +806,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 HnswConfiguration::Quantized1024By16(_, q) => q
                     .search(AbstractVector::Unstored(&vector), sp)
                     .into_iter()
+                    .map(|x| {
+                        eprintln!("Doing search printout!");
+                        x
+                    })
                     .map(|x| MatchResult {
                         id: x.0 .0.to_string(),
                         distance: x.1,
