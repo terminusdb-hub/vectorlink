@@ -1551,6 +1551,7 @@ impl<C: Comparator + 'static> Hnsw<C> {
             vecs.truncate(selection);
             vecs
         };
+        eprintln!("retrieved vecs for recall");
         let relevant: usize = vecs_to_find
             .par_iter()
             .filter(|vid| {
