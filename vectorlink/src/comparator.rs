@@ -332,10 +332,6 @@ pub trait DistanceCalculator {
     fn distance(&self, left: &Self::T, right: &Self::T) -> f32 {
         self.finalize_partial_distance(self.partial_distance(left, right))
     }
-
-    fn auto_partial_distance(&self, _left: &Self::T) -> f32 {
-        0.0
-    }
 }
 
 // i < j, i != j
