@@ -458,6 +458,7 @@ impl<
         sp: SearchParameters,
     ) -> Vec<(VectorId, f32)> {
         let raw_v = self.comparator.lookup_abstract(v.clone());
+        eprintln!("Quanitizing for search");
         let quantized = self.quantizer.quantize(&raw_v);
         eprintln!("Searching for quantized: {quantized:?}");
         let result = self.hnsw.search(AbstractVector::Unstored(&quantized), sp);
