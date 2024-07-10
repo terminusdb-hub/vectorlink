@@ -247,7 +247,7 @@ impl DistanceCalculator for EuclideanDistance16For1024 {
     type T = Centroid16;
 
     fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
-        euclidean_partial_distance_16(left, right)
+        dbg!(euclidean_partial_distance_16(left, right))
     }
 
     fn finalize_partial_distance(&self, distance: f32) -> f32 {
@@ -262,7 +262,7 @@ impl DistanceCalculator for EuclideanDistance16For1024 {
     }
 
     fn partial_norm(&self, vec: &Self::T) -> f32 {
-        euclidean_partial_norm_16(vec)
+        dbg!(euclidean_partial_norm_16(vec))
     }
 }
 
