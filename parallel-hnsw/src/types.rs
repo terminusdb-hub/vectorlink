@@ -86,6 +86,7 @@ impl Ord for OrderedFloat {
         let res = self.partial_cmp(other);
         if res.is_none() {
             eprintln!("incomparable: {self:?} <> {other:?}");
+            panic!();
         };
         res.unwrap()
     }

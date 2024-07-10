@@ -459,7 +459,9 @@ impl<
     ) -> Vec<(VectorId, f32)> {
         let raw_v = self.comparator.lookup_abstract(v.clone());
         let quantized = self.quantizer.quantize(&raw_v);
+        eprintln!("Searching for quantized: {quantized:?}");
         let result = self.hnsw.search(AbstractVector::Unstored(&quantized), sp);
+        eprintln!("Reordering to natural distance");
         self.pq_to_natural_distance_queue(v, result)
     }
 
