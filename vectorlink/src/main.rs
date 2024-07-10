@@ -18,6 +18,7 @@ mod openai;
 mod server;
 mod vecmath;
 mod vectors;
+use parallel_hnsw::Comparator;
 
 mod search_server;
 
@@ -46,6 +47,7 @@ use rayon::iter::Either;
 use rayon::prelude::*;
 
 use crate::batch::index_domain;
+use crate::comparator::Disk1024Comparator;
 use crate::search_server::MatchResult;
 use crate::vecmath::normalize_vec;
 use crate::vecmath::Embedding;
@@ -799,7 +801,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let mut vector: [f32; VECTOR_COUNT] = [0.0; 1024];
 
             let abstract_vector = if let Some(vid) = vid {
-                AbstractVector::Stored(VectorId(vid))
+                let hnsw = match &hnsw {
+                    HnswConfiguration::Quantized1024By16(_, q) => q,
+                    _ => panic!("oops"),
+                };
+                let fc: Disk1024Comparator = hnsw.full_comparator().clone();
+                let vec = fc.lookup(VectorId(vid));
+                vector[0..VECTOR_COUNT].clone_from_slice(&*vec);
+                AbstractVector::Unstored(&vector)
             } else {
                 let mut stdin = std::io::stdin();
                 const VECTOR_BYTE_COUNT: usize = std::mem::size_of::<f32>() * VECTOR_COUNT;
