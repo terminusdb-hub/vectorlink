@@ -506,16 +506,18 @@ impl<
 
     pub fn compare(&self, v1: usize, v2: usize) -> QuantizedCompare {
         let c = self.quantized_comparator();
+        let quantizer = self.quantizer();
         let fc = self.full_comparator();
+        let vec1 = fc.lookup(VectorId(v1));
+        let vec2 = fc.lookup(VectorId(v2));
+        let q1 = quantizer.quantize(&vec1);
+        let q2 = quantizer.quantize(&vec2);
         QuantizedCompare {
             unquantized: fc.compare_vec(
                 AbstractVector::Stored(VectorId(v1)),
                 AbstractVector::Stored(VectorId(v2)),
             ),
-            quantized: c.compare_vec(
-                AbstractVector::Stored(VectorId(v1)),
-                AbstractVector::Stored(VectorId(v2)),
-            ),
+            quantized: c.compare_raw(&q1, &q2),
         }
     }
 
