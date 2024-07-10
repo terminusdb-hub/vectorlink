@@ -507,7 +507,7 @@ impl MemoizedPartialDistances {
         let offset = match i.cmp(&j) {
             std::cmp::Ordering::Equal => {
                 // Early bail
-                return 1.0 / self.partial_norm(i).powi(2);
+                return 1.0 / self.partial_norm(i);
             }
             std::cmp::Ordering::Less => index_to_offset(self.size, i as usize, j as usize),
             std::cmp::Ordering::Greater => index_to_offset(self.size, j as usize, i as usize),
