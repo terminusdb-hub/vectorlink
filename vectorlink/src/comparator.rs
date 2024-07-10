@@ -597,7 +597,7 @@ impl<
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
-        let calculator = QuantizedDistance::default();
+        let calculator = CentroidDistance::default();
         calculator.distance(v1, v2)
     }
 }
