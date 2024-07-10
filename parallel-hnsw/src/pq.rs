@@ -23,6 +23,12 @@ pub struct QuantizationStatistics {
     pub sample_deviation: f32,
 }
 
+#[derive(Debug)]
+pub struct QuantizedCompare {
+    pub quantized: f32,
+    pub unquantized: f32,
+}
+
 pub trait Quantizer<const SIZE: usize, const QUANTIZED_SIZE: usize> {
     fn quantize(&self, vec: &[f32; SIZE]) -> [u16; QUANTIZED_SIZE];
     fn reconstruct(&self, qvec: &[u16; QUANTIZED_SIZE]) -> [f32; SIZE];
@@ -495,6 +501,21 @@ impl<
         self.hnsw.zero_neighborhood_size()
     }
 
+    pub fn compare(&self, v1: usize, v2: usize) -> QuantizedCompare {
+        let c = self.quantized_comparator();
+        let fc = self.full_comparator();
+        QuantizedCompare {
+            unquantized: fc.compare_vec(
+                AbstractVector::Stored(VectorId(v1)),
+                AbstractVector::Stored(VectorId(v2)),
+            ),
+            quantized: c.compare_vec(
+                AbstractVector::Stored(VectorId(v1)),
+                AbstractVector::Stored(VectorId(v2)),
+            ),
+        }
+    }
+
     pub fn quantization_statistics(&self) -> QuantizationStatistics {
         let c = self.quantized_comparator();
         let quantized_vecs: Vec<_> = c.vecs().collect();
@@ -504,21 +525,15 @@ impl<
 
         let fc = self.full_comparator();
         let sample_size = estimate_sample_size(0.95, fc.num_vecs());
-        let reconstruction_error = vec![0.0_f32; sample_size];
-        eprintln!("starting processing of vector chunks");
-        fc.selection_with_id(sample_size)
+        let reconstruction_error: Vec<_> = fc
+            .selection_with_id(sample_size)
             .into_par_iter()
             .map(|(vecid, full_vec)| (full_vec, &quantized_vecs[vecid.0]))
             .map(|(full_vec, quantized_vec)| {
                 let reconstructed = quantizer.reconstruct(quantized_vec);
-
                 fc.compare_raw(&full_vec, &reconstructed)
             })
-            .enumerate()
-            .for_each(|(ix, distance)| unsafe {
-                let ptr = reconstruction_error.as_ptr().add(ix) as *mut f32;
-                *ptr = distance;
-            });
+            .collect();
 
         let sample_avg: f32 =
             reconstruction_error.iter().sum::<f32>() / reconstruction_error.len() as f32;
@@ -548,18 +563,23 @@ impl<
             ..
         } = self.quantization_statistics();
         eprintln!("threshold: {threshold}");
-        let threshold = threshold + sample_avg + 2.0 * sample_deviation;
+        let new_threshold = threshold + 2.0 * sample_deviation;
         eprintln!("sample_avg: {sample_avg}");
         eprintln!("sample_deviation: {sample_deviation}");
-        eprintln!("recalculated threshold: {threshold}");
+        eprintln!("recalculated threshold: {new_threshold}");
 
         self.hnsw
-            .threshold_nn(threshold, search_parameters)
-            .map(|(vid, queue)| {
-                (
-                    vid,
-                    self.pq_to_natural_distance_queue(AbstractVector::Stored(vid), queue),
-                )
+            .threshold_nn(new_threshold, search_parameters)
+            .map(move |(vid, queue)| {
+                let mut queue =
+                    self.pq_to_natural_distance_queue(AbstractVector::Stored(vid), queue);
+                let len = queue
+                    .iter()
+                    .rposition(|(_, d)| *d < threshold)
+                    .map(|pos| pos + 1)
+                    .unwrap_or(0);
+                queue.truncate(len);
+                (vid, queue)
             })
     }
 
