@@ -571,7 +571,7 @@ impl<
     fn new(centroids: Vec<Self::T>) -> Self {
         let len = centroids.len();
         Self {
-            distances: Arc::new(MemoizedPartialDistances::new(C::default(), &centroids)),
+            distances: Arc::new(MemoizedPartialDistances::new(Q::default(), &centroids)),
             centroids: Arc::new(LoadedSizedVectorRange::new(
                 0..len,
                 centroids.into_boxed_slice(),
