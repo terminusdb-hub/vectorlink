@@ -16,19 +16,29 @@ def byte_offset_for_line_number(bucket_name, index_key, line_number):
         Range=r
     )
     data = response['Body'].read()
-    return struct.unpack('<q', data)[0]
+    return struct.unpack('<Q', data)[0]
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--bucket-name', required=True)
     parser.add_argument('--strings-key', required=True)
     parser.add_argument('--newline-index', required=True)
-    parser.add_argument('line', type=int)
+    parser.add_argument('--map-key', required=False)
+    parser.add_argument('vector_id', type=int)
 
     args = parser.parse_args()
 
-    start_byte = byte_offset_for_line_number(args.bucket_name, args.newline_index, args.line)
-    end_byte = byte_offset_for_line_number(args.bucket_name, args.newline_index, args.line + 1) - 1
+    vector_id = args.vector_id
+    if args.map_key:
+        obj = s3.get_object(Bucket=args.bucket_name, Key=args.map_key, Range=f'bytes={args.vector_id*8}-{(args.vector_id+1)*8-1}')
+        data = obj['Body'].read()
+        vector_id = struct.unpack('<Q', data)[0]
+        print(f'real vector id is {vector_id}', file=sys.stderr)
+
+    start_byte = byte_offset_for_line_number(args.bucket_name, args.newline_index, vector_id)
+    end_byte = byte_offset_for_line_number(args.bucket_name, args.newline_index, vector_id + 1) - 1
+
+    print(f'line is {start_byte}-{end_byte}', file=sys.stderr)
 
     obj = s3.get_object(Bucket=args.bucket_name, Key=args.strings_key, Range=f'bytes={start_byte}-{end_byte}')
     print(obj['Body'].read())
