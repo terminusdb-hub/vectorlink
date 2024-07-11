@@ -583,15 +583,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                                 cluster.push((result.0 .0, distance))
                             }
                         }
-                        let cluster = serde_json::to_string(&cluster).unwrap();
-                        let mut lock = stdout.lock();
-                        writeln!(lock, "[{}, {}]", v.0, cluster).unwrap();
+                        if !cluster.is_empty() {
+                            let cluster = serde_json::to_string(&cluster).unwrap();
+                            let mut lock = stdout.lock();
+                            writeln!(lock, "[{}, {}]", v.0, cluster).unwrap();
+                        }
                     });
                 }
             }
-            /*
-
-            */
         }
         Commands::ImproveIndex {
             commit,
