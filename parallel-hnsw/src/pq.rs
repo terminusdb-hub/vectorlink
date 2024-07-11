@@ -511,8 +511,8 @@ impl<
         let fc = self.full_comparator();
         let vec1 = fc.lookup(VectorId(v1));
         let vec2 = fc.lookup(VectorId(v2));
-        eprintln!("vec1: {vec1}");
-        eprintln!("vec2: {vec2}");
+        eprintln!("vec1: {:?}", *vec1);
+        eprintln!("vec2: {:?}", *vec2);
         let q1 = quantizer.quantize(&vec1);
         let q2 = quantizer.quantize(&vec2);
         QuantizedCompare {
