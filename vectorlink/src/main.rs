@@ -40,6 +40,7 @@ use parallel_hnsw::VectorId;
 use rand::prelude::*;
 use std::fs::File;
 use std::io;
+use vecmath::Embedding1024;
 use vecmath::EMBEDDING_BYTE_LENGTH;
 use vecmath::EMBEDDING_LENGTH;
 
@@ -51,6 +52,7 @@ use crate::comparator::Disk1024Comparator;
 use crate::search_server::MatchResult;
 use crate::vecmath::normalize_vec;
 use crate::vecmath::Embedding;
+use crate::vecmath::EMBEDDING_BYTE_LENGTH_1024;
 
 use {indexer::create_index_name, vecmath::empty_embedding, vectors::VectorStore};
 
@@ -159,6 +161,7 @@ enum Commands {
         #[arg(long)]
         near2: String,
     },
+    CompareRaw {},
     TestRecall {
         #[arg(short, long)]
         commit: String,
@@ -378,6 +381,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .await?
                 .0;
             eprintln!("{:?}", v);
+        }
+        Commands::CompareRaw {} => {
+            let mut bufs: [Embedding1024; 2] =
+                unsafe { std::mem::transmute([0_u8; EMBEDDING_BYTE_LENGTH_1024 * 2]) };
+            let mut stdin = std::io::stdin().lock();
+            unsafe {
+                let slice = std::slice::from_raw_parts_mut(
+                    bufs.as_ptr() as *mut u8,
+                    EMBEDDING_BYTE_LENGTH_1024 * 2,
+                );
+                stdin.read_exact(slice).unwrap();
+            }
+
+            let distance = vecmath::normalized_cosine_distance_1024(&bufs[0], &bufs[1]);
+            println!("{distance}");
         }
         Commands::CompareQuantized {
             v1,
