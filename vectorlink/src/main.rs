@@ -2,6 +2,7 @@
 #![feature(trait_upcasting)]
 
 use std::fs;
+use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Write;
 use std::os::unix::fs::FileExt;
@@ -389,13 +390,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             unsafe {
                 let slice = std::slice::from_raw_parts_mut(
                     bufs.as_ptr() as *mut u8,
-                    EMBEDDING_BYTE_LENGTH_1024 * 2,
+                    EMBEDDING_BYTE_LENGTH_1024,
                 );
                 stdin.read_exact(slice).unwrap();
             }
 
-            let distance = vecmath::normalized_cosine_distance_1024(&bufs[0], &bufs[1]);
-            println!("{distance}");
+            loop {
+                let result = unsafe {
+                    let slice = std::slice::from_raw_parts_mut(
+                        bufs[1..].as_ptr() as *mut u8,
+                        EMBEDDING_BYTE_LENGTH_1024,
+                    );
+
+                    stdin.read_exact(slice)
+                };
+
+                if let Some(err) = result.as_ref().err() {
+                    if err.kind() == ErrorKind::UnexpectedEof {
+                        // dont care
+                        break;
+                    }
+
+                    // do care
+                }
+
+                result.unwrap();
+
+                let distance = vecmath::normalized_cosine_distance_1024(&bufs[0], &bufs[1]);
+                println!("{distance}");
+            }
         }
         Commands::CompareQuantized {
             v1,
