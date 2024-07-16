@@ -109,7 +109,7 @@ impl TaskHandler for LineIndexTaskHandler {
             let mut data = dto.body;
 
             let mut positions = Vec::new();
-            if start == 0 {
+            if i == 0 {
                 // first block so we add a 0 for the first line
                 positions.push(0);
             }
