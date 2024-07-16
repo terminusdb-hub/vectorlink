@@ -83,9 +83,15 @@ def start_(task):
     part_number = 1
     prepared_part = bytearray()
     obj = s3.get_object(Bucket=bucket_name, Key=strings_key, Range=f'bytes={start_byte}-{end_byte}')
+    count = 0
     for line in obj['Body'].iter_lines():
         if line == b'':
-            continue
+            if count == 0:
+                continue
+            else:
+                raise Exception(f'unusual empty line @ {count}')
+
+        count += 1
 
         try:
             j = json.loads(line)
