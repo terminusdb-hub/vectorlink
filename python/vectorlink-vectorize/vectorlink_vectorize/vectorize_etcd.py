@@ -15,6 +15,7 @@ import struct
 
 identity = None
 chunk_size = 100
+segment_size = 25000;
 
 s3 = boto3.client('s3')
 
@@ -55,7 +56,6 @@ def start_(task):
     end_line = int(init['end_line'])
     n_strings = end_line - start_line + 1
 
-    segment_size = 25000;
 
     template_string = init['template']
     template = pybars.Compiler().compile(template_string)
@@ -130,7 +130,7 @@ def start_(task):
     if len(chunk) != 0:
         result = backend.process_chunk(chunk)
         prepared_part.extend(result)
-        embeddings_queued += chunk_size
+        embeddings_queued += len(chunk)
     if embeddings_queued >= 0:
         result = s3.upload_part(
             Bucket=bucket_name,
