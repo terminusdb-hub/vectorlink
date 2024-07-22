@@ -7,7 +7,9 @@ members = [ "line-index",
 "vectorlink-task",
 "vectorlink-task-py",
 "vectorlink-task-monitor",
-"vectorlink-worker", "vectorlink-quantizer"]
+"vectorlink-worker",
+"vectorlink-cross-search",
+"vectorlink-quantizer"]
 
 [profile.release]
 debug = true

@@ -7,6 +7,7 @@ let vectorlink-build-support = final.callPackage ./build {}; in
     vectorlink-task-monitor = final.callPackage ../vectorlink-task-monitor {inherit vectorlink-build-support;};
     vectorlink-task-py = final.callPackage ../vectorlink-task-py {inherit vectorlink-build-support;};
     vectorlink-worker = final.callPackage ../vectorlink-worker {inherit vectorlink-build-support;};
+    vectorlink-cross-search = final.callPackage ../vectorlink-cross-search {inherit vectorlink-build-support;};
     task-util = final.callPackage ../task-util {inherit vectorlink-build-support;};
     line-index = final.callPackage ../line-index {inherit vectorlink-build-support;};
     vectorlink-vectorize = final.callPackage ../python/vectorlink-vectorize {};
