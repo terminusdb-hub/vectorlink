@@ -41,6 +41,7 @@ pub struct SearchRequest {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SearchProgress {
+    vector_count: usize,
     segment_count: usize,
 }
 
@@ -58,20 +59,22 @@ impl TaskHandler for VectorlinkTaskHandler {
     type Error = String;
 
     async fn initialize(
-        live: TaskLiveness<Self::Init, Self::Progress>,
+        _live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Progress, Self::Error> {
-        Ok(SearchProgress { segment_count: 0 })
+        Ok(SearchProgress {
+            vector_count: 0,
+            segment_count: 0,
+        })
     }
     async fn process(
         live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Complete, Self::Error> {
-        let key = "fake";
         let request: SearchRequest = live.init().unwrap().unwrap();
         let SearchRequest {
             domain,
             commit,
             directory,
-            segment_start,
+            segment_start: _,
             segment_vector_count,
             segment_count,
             output_dir,
@@ -79,6 +82,10 @@ impl TaskHandler for VectorlinkTaskHandler {
         } = request;
         let _state = live.progress().unwrap();
         let mut live = live.into_sync().unwrap();
+        let mut progress = live.progress().unwrap().clone();
+        let segment_start = progress.segment_count;
+        progress.vector_count = 0;
+        live.set_progress(progress);
 
         block_in_place(|| {
             let store = VectorStore::new(&directory, 1234);
@@ -100,13 +107,24 @@ impl TaskHandler for VectorlinkTaskHandler {
                 let iter = open_vector_segment(&directory, segment_index, segment_vector_count);
                 let result_file_name = format!("{domain}_{segment_index}.queues");
                 let result_index_name = format!("{domain}_{segment_index}.index");
+
                 let mut result_file =
                     BufWriter::new(File::create(output_dir_path.join(result_file_name)).unwrap());
                 let mut result_index =
                     BufWriter::new(File::create(output_dir_path.join(result_index_name)).unwrap());
                 result_index.write_u64::<NativeEndian>(0).unwrap();
                 let record_len = std::mem::size_of::<(VectorId, f32)>();
-                for v in iter {
+                for (i, v) in iter.enumerate() {
+                    if (i + 1) % 10_000 == 0 {
+                        result_file.flush().unwrap();
+                        result_file.get_ref().sync_all().unwrap();
+                        result_index.flush().unwrap();
+                        result_index.get_ref().sync_all().unwrap();
+
+                        let mut progress = live.progress().unwrap().clone();
+                        progress.vector_count = i;
+                        live.set_progress(progress).unwrap();
+                    }
                     let mut result =
                         hnsw.search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
                     let result_count = result
@@ -130,6 +148,12 @@ impl TaskHandler for VectorlinkTaskHandler {
                 result_file.get_ref().sync_all().unwrap();
                 result_index.flush().unwrap();
                 result_index.get_ref().sync_all().unwrap();
+
+                live.set_progress(SearchProgress {
+                    vector_count: 0,
+                    segment_count: segment_index + 1,
+                })
+                .unwrap();
             }
         });
 
@@ -144,11 +168,11 @@ fn open_vector_segment<P: AsRef<Path>>(
 ) -> impl Iterator<Item = [f32; 1024]> {
     let mut domain_index = 0;
     let dir_path: &Path = directory.as_ref();
+    let mut start = segment_index * segment_vector_count;
     loop {
         let path = dir_path.join(format!("{domain_index}.vecs"));
         let size_in_bytes = std::fs::metadata(&path).unwrap().size() as usize;
         let size_in_vecs = size_in_bytes / 4096;
-        let mut start = segment_index * segment_vector_count;
         if size_in_vecs >= start {
             start -= size_in_vecs;
             domain_index += 1;
