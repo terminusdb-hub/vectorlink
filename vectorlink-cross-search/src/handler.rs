@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder::{LittleEndian, NativeEndian, WriteBytesExt};
 use rayon::iter::Either;
 use rayon::prelude::*;
 
 use parallel_hnsw::parameters::{OptimizationParameters, SearchParameters};
-use parallel_hnsw::{keepalive, Serializable};
+use parallel_hnsw::{keepalive, Serializable, VectorId};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -32,9 +32,9 @@ pub struct SearchRequest {
     domain: usize,
     commit: String,
     directory: String,
-    start_segment: usize,
+    segment_start: usize,
+    segment_vector_count: usize,
     segment_count: usize,
-    segment_size: usize,
     output_dir: String,
     distance_threshold: f32,
 }
@@ -71,9 +71,9 @@ impl TaskHandler for VectorlinkTaskHandler {
             domain,
             commit,
             directory,
-            start_segment,
+            segment_start,
+            segment_vector_count,
             segment_count,
-            segment_size,
             output_dir,
             distance_threshold,
         } = request;
@@ -95,17 +95,41 @@ impl TaskHandler for VectorlinkTaskHandler {
             let sp = SearchParameters::default();
 
             // TODO: this needs to loop through multiple segments
-            let iter = open_vector_file(&directory, start_segment, segment_count);
-            for v in iter {
-                let mut result = hnsw.search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
-                let result_count = result
-                    .iter()
-                    .position(|(_, distance)| *distance > distance_threshold)
-                    .unwrap_or(result.len());
-                result.truncate(result_count);
-                // And now do something with that result
+            let output_dir_path: PathBuf = output_dir.into();
+            for segment_index in segment_start..segment_start + segment_count {
+                let iter = open_vector_segment(&directory, segment_index, segment_vector_count);
+                let result_file_name = format!("{domain}_{segment_index}.queues");
+                let result_index_name = format!("{domain}_{segment_index}.index");
+                let mut result_file =
+                    BufWriter::new(File::create(output_dir_path.join(result_file_name)).unwrap());
+                let mut result_index =
+                    BufWriter::new(File::create(output_dir_path.join(result_index_name)).unwrap());
+                result_index.write_u64::<NativeEndian>(0).unwrap();
+                let record_len = std::mem::size_of::<(VectorId, f32)>();
+                for v in iter {
+                    let mut result =
+                        hnsw.search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
+                    let result_count = result
+                        .iter()
+                        .position(|(_, distance)| *distance > distance_threshold)
+                        .unwrap_or(result.len());
+                    result.truncate(result_count);
+                    // And now do something with that result
+                    let data_len = record_len * result.len();
+                    result_index
+                        .write_u64::<NativeEndian>(data_len as u64)
+                        .unwrap();
+                    unsafe {
+                        let data_slice =
+                            std::slice::from_raw_parts(result.as_ptr() as *const u8, data_len);
+                        result_file.write_all(data_slice).unwrap();
+                    }
+                }
 
-                let result_file_name = todo!();
+                result_file.flush().unwrap();
+                result_file.get_ref().sync_all().unwrap();
+                result_index.flush().unwrap();
+                result_index.get_ref().sync_all().unwrap();
             }
         });
 
@@ -113,9 +137,9 @@ impl TaskHandler for VectorlinkTaskHandler {
     }
 }
 
-fn open_vector_file<P: AsRef<Path>>(
+fn open_vector_segment<P: AsRef<Path>>(
     directory: P,
-    mut segment_index: usize,
+    segment_index: usize,
     segment_vector_count: usize,
 ) -> impl Iterator<Item = [f32; 1024]> {
     let mut domain_index = 0;
