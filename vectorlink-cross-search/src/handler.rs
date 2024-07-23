@@ -188,7 +188,7 @@ fn open_vector_segment<P: AsRef<Path>>(
         let path = dir_path.join(format!("{domain_index}.vecs"));
         let size_in_bytes = std::fs::metadata(&path).unwrap().size() as usize;
         let size_in_vecs = size_in_bytes / 4096;
-        if size_in_vecs >= start {
+        if start >= size_in_vecs {
             start -= size_in_vecs;
             domain_index += 1;
             continue;
