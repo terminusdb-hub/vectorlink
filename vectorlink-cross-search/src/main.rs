@@ -19,7 +19,7 @@ fn generate_identity() -> String {
     "worker".to_string()
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Command::parse();
     let mut queue = Queue::connect(
