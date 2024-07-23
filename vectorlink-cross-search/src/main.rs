@@ -9,7 +9,7 @@ use crate::handler::VectorlinkTaskHandler;
 struct Command {
     #[arg(short, long, default_value = "Vec::new()")]
     etcd: Vec<String>,
-    #[arg(short, long, default_value = "vectorlink")]
+    #[arg(short, long, default_value = "cross-search")]
     service: String,
     #[arg(short, long)]
     identity: Option<String>,
