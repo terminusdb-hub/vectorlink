@@ -63,7 +63,7 @@ impl TaskHandler for VectorlinkTaskHandler {
         })
     }
     async fn process(
-        live: TaskLiveness<Self::Init, Self::Progress>,
+        mut live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Complete, Self::Error> {
         let request: SearchRequest = live.init().unwrap().unwrap();
         let SearchRequest {
@@ -78,10 +78,10 @@ impl TaskHandler for VectorlinkTaskHandler {
         } = request;
         eprintln!("start process");
         let _state = live.progress().unwrap();
-        let mut progress = live.progress().unwrap().clone();
+        let mut progress = live.progress().unwrap().unwrap().clone();
         let segment_start = progress.segment_count;
         progress.vector_count = 0;
-        live.set_progress(progress).unwrap();
+        live.set_progress(progress).await.unwrap();
         eprintln!("reset progress to sane start");
 
         let mut live = live.into_sync().unwrap();
