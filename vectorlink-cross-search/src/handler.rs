@@ -166,7 +166,10 @@ impl TaskHandler for VectorlinkTaskHandler {
                 })
                 .unwrap();
             }
+            eprintln!("out of the loop");
         });
+
+        eprintln!("out of the block");
 
         Ok(())
     }
