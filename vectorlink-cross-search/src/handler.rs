@@ -78,13 +78,13 @@ impl TaskHandler for VectorlinkTaskHandler {
         } = request;
         eprintln!("start process");
         let _state = live.progress().unwrap();
-        let mut live = live.into_sync().unwrap();
         let mut progress = live.progress().unwrap().clone();
         let segment_start = progress.segment_count;
         progress.vector_count = 0;
         live.set_progress(progress).unwrap();
         eprintln!("reset progress to sane start");
 
+        let mut live = live.into_sync().unwrap();
         block_in_place(|| {
             eprintln!("block in place");
             let store = VectorStore::new(&directory, 1234);
