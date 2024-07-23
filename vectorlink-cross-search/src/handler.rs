@@ -1,31 +1,26 @@
-use std::collections::HashMap;
-use std::io::{self, BufWriter, Seek, SeekFrom, Write};
-use std::io::{BufReader, ErrorKind, Read};
+use std::io::{BufReader, Read};
+use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use byteorder::{LittleEndian, NativeEndian, WriteBytesExt};
+use byteorder::{NativeEndian, WriteBytesExt};
 use rayon::iter::Either;
 use rayon::prelude::*;
 
-use parallel_hnsw::parameters::{OptimizationParameters, SearchParameters};
-use parallel_hnsw::{keepalive, Serializable, VectorId};
+use parallel_hnsw::parameters::SearchParameters;
+use parallel_hnsw::{Serializable, VectorId};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 
 use tokio::task::block_in_place;
-use vectorlink::indexer::{create_index_name, index_serialization_path};
-use vectorlink::openai::Model;
+use vectorlink::configuration::HnswConfiguration;
+use vectorlink::indexer::create_index_name;
 use vectorlink::vectors::VectorStore;
-use vectorlink::{batch::index_domain, configuration::HnswConfiguration};
 use vectorlink_task::keepalive_sync;
-use vectorlink_task::task::{SyncTaskLiveness, TaskHandler, TaskLiveness};
+use vectorlink_task::task::{TaskHandler, TaskLiveness};
 
-use parallel_hnsw::progress::{Interrupt, LayerStatistics, ProgressMonitor};
-
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SearchRequest {
@@ -85,7 +80,7 @@ impl TaskHandler for VectorlinkTaskHandler {
         let mut progress = live.progress().unwrap().clone();
         let segment_start = progress.segment_count;
         progress.vector_count = 0;
-        live.set_progress(progress);
+        live.set_progress(progress).unwrap();
 
         block_in_place(|| {
             let store = VectorStore::new(&directory, 1234);
@@ -221,7 +216,7 @@ impl Iterator for VectorIterator {
         self.file.read_exact(&mut result).unwrap();
         self.remaining_vecs_in_file -= 1;
         self.remaining_vecs -= 1;
-        Some(unsafe { std::mem::transmute(result) })
+        Some(unsafe { std::mem::transmute::<[u8; 4096], [f32; 1024]>(result) })
     }
 }
 
