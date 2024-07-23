@@ -150,10 +150,15 @@ impl TaskHandler for VectorlinkTaskHandler {
                     live.keepalive().unwrap();
                 }
 
-                result_file.flush().unwrap();
-                result_file.get_ref().sync_all().unwrap();
+                eprintln!("flushing files");
                 result_index.flush().unwrap();
+                result_file.flush().unwrap();
+                eprintln!("syncing result index");
                 result_index.get_ref().sync_all().unwrap();
+                eprintln!("syncing result file");
+                result_file.get_ref().sync_all().unwrap();
+
+                eprintln!("done!");
 
                 live.set_progress(SearchProgress {
                     vector_count: 0,
