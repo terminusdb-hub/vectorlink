@@ -2151,6 +2151,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "print-search-results"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "clap",
+ "parallel-hnsw",
+]
+
+[[package]]
 name = "proc-macro-hack"
 version = "0.5.20+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -9,7 +9,7 @@ members = [ "line-index",
 "vectorlink-task-monitor",
 "vectorlink-worker",
 "vectorlink-cross-search",
-"vectorlink-quantizer"]
+"vectorlink-quantizer", "print-search-results"]
 
 [profile.release]
 debug = true
