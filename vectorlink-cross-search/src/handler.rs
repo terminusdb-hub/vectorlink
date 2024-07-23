@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use byteorder::{NativeEndian, WriteBytesExt};
+use itertools::Itertools;
 use rayon::iter::Either;
 use rayon::prelude::*;
 
@@ -109,33 +110,46 @@ impl TaskHandler for VectorlinkTaskHandler {
                     BufWriter::new(File::create(output_dir_path.join(result_index_name)).unwrap());
                 result_index.write_u64::<NativeEndian>(0).unwrap();
                 let record_len = std::mem::size_of::<(VectorId, f32)>();
-                for (i, v) in iter.enumerate() {
-                    if (i + 1) % 10_000 == 0 {
+                const CHUNK_SIZE: usize = 100;
+                for (chunk_index, c) in iter.chunks(CHUNK_SIZE).into_iter().enumerate() {
+                    let results: Vec<Vec<(VectorId, f32)>> = c
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .par_bridge()
+                        .map(|v| {
+                            let mut result =
+                                hnsw.search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
+                            let result_count = result
+                                .iter()
+                                .position(|(_, distance)| *distance > distance_threshold)
+                                .unwrap_or(result.len());
+                            result.truncate(result_count);
+                            result
+                        })
+                        .collect();
+
+                    for result in results {
+                        // And now do something with that result
+                        let data_len = record_len * result.len();
+                        result_index
+                            .write_u64::<NativeEndian>(data_len as u64)
+                            .unwrap();
+                        unsafe {
+                            let data_slice =
+                                std::slice::from_raw_parts(result.as_ptr() as *const u8, data_len);
+                            result_file.write_all(data_slice).unwrap();
+                        }
+                    }
+
+                    if chunk_index % 100 == 0 {
                         result_file.flush().unwrap();
                         result_file.get_ref().sync_all().unwrap();
                         result_index.flush().unwrap();
                         result_index.get_ref().sync_all().unwrap();
 
                         let mut progress = live.progress().unwrap().clone();
-                        progress.vector_count = i;
+                        progress.vector_count = chunk_index * CHUNK_SIZE;
                         live.set_progress(progress).unwrap();
-                    }
-                    let mut result =
-                        hnsw.search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
-                    let result_count = result
-                        .iter()
-                        .position(|(_, distance)| *distance > distance_threshold)
-                        .unwrap_or(result.len());
-                    result.truncate(result_count);
-                    // And now do something with that result
-                    let data_len = record_len * result.len();
-                    result_index
-                        .write_u64::<NativeEndian>(data_len as u64)
-                        .unwrap();
-                    unsafe {
-                        let data_slice =
-                            std::slice::from_raw_parts(result.as_ptr() as *const u8, data_len);
-                        result_file.write_all(data_slice).unwrap();
                     }
                 }
 
