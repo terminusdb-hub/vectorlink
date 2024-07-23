@@ -76,14 +76,17 @@ impl TaskHandler for VectorlinkTaskHandler {
             output_dir,
             distance_threshold,
         } = request;
+        eprintln!("start process");
         let _state = live.progress().unwrap();
         let mut live = live.into_sync().unwrap();
         let mut progress = live.progress().unwrap().clone();
         let segment_start = progress.segment_count;
         progress.vector_count = 0;
         live.set_progress(progress).unwrap();
+        eprintln!("reset progress to sane start");
 
         block_in_place(|| {
+            eprintln!("block in place");
             let store = VectorStore::new(&directory, 1234);
             let hnsw_index_path = dbg!(format!(
                 "{}/{}.hnsw",
@@ -95,6 +98,7 @@ impl TaskHandler for VectorlinkTaskHandler {
                 live,
                 HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap()
             );
+            eprintln!("loaded index");
             let sp = SearchParameters::default();
 
             // TODO: this needs to loop through multiple segments
@@ -108,7 +112,9 @@ impl TaskHandler for VectorlinkTaskHandler {
                     BufWriter::new(File::create(output_dir_path.join(result_file_name)).unwrap());
                 let mut result_index =
                     BufWriter::new(File::create(output_dir_path.join(result_index_name)).unwrap());
+                eprintln!("opened target files");
                 result_index.write_u64::<NativeEndian>(0).unwrap();
+                eprintln!("wrote first 0");
                 let record_len = std::mem::size_of::<(VectorId, f32)>();
                 const CHUNK_SIZE: usize = 100;
                 for (chunk_index, c) in iter.chunks(CHUNK_SIZE).into_iter().enumerate() {
