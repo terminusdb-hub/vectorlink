@@ -147,16 +147,7 @@ impl TaskHandler for VectorlinkTaskHandler {
                         }
                     }
 
-                    if chunk_index % 100 == 0 {
-                        result_file.flush().unwrap();
-                        result_file.get_ref().sync_all().unwrap();
-                        result_index.flush().unwrap();
-                        result_index.get_ref().sync_all().unwrap();
-
-                        let mut progress = live.progress().unwrap().clone();
-                        progress.vector_count = chunk_index * CHUNK_SIZE;
-                        live.set_progress(progress).unwrap();
-                    }
+                    live.keepalive().unwrap();
                 }
 
                 result_file.flush().unwrap();
