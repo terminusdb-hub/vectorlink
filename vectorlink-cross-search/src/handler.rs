@@ -7,7 +7,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use byteorder::{NativeEndian, WriteBytesExt};
 use itertools::Itertools;
-use rayon::iter::Either;
 use rayon::prelude::*;
 
 use parallel_hnsw::parameters::SearchParameters;
@@ -118,38 +117,40 @@ impl TaskHandler for VectorlinkTaskHandler {
                 let record_len = std::mem::size_of::<(VectorId, f32)>();
                 const CHUNK_SIZE: usize = 1000;
                 let mut record_offset = 0;
-                for c in iter.chunks(CHUNK_SIZE).into_iter() {
-                    let results: Vec<Vec<(VectorId, f32)>> = c
-                        .collect::<Vec<_>>()
-                        .into_par_iter()
-                        .map(|v| {
-                            let mut result =
-                                hnsw.search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
-                            let result_count = result
-                                .iter()
-                                .position(|(_, distance)| *distance > distance_threshold)
-                                .unwrap_or(result.len());
-                            result.truncate(result_count);
-                            result
-                        })
-                        .collect();
+                keepalive_sync!(live, {
+                    for c in iter.chunks(CHUNK_SIZE).into_iter() {
+                        let results: Vec<Vec<(VectorId, f32)>> = c
+                            .collect::<Vec<_>>()
+                            .into_par_iter()
+                            .map(|v| {
+                                let mut result = hnsw
+                                    .search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
+                                let result_count = result
+                                    .iter()
+                                    .position(|(_, distance)| *distance > distance_threshold)
+                                    .unwrap_or(result.len());
+                                result.truncate(result_count);
+                                result
+                            })
+                            .collect();
 
-                    for result in results {
-                        // And now do something with that result
-                        let data_len = record_len * result.len();
-                        record_offset += data_len;
-                        result_index
-                            .write_u64::<NativeEndian>(record_offset as u64)
-                            .unwrap();
-                        unsafe {
-                            let data_slice =
-                                std::slice::from_raw_parts(result.as_ptr() as *const u8, data_len);
-                            result_file.write_all(data_slice).unwrap();
+                        for result in results {
+                            // And now do something with that result
+                            let data_len = record_len * result.len();
+                            record_offset += data_len;
+                            result_index
+                                .write_u64::<NativeEndian>(record_offset as u64)
+                                .unwrap();
+                            unsafe {
+                                let data_slice = std::slice::from_raw_parts(
+                                    result.as_ptr() as *const u8,
+                                    data_len,
+                                );
+                                result_file.write_all(data_slice).unwrap();
+                            }
                         }
                     }
-
-                    live.keepalive().unwrap();
-                }
+                });
 
                 eprintln!("flushing files");
                 result_index.flush().unwrap();
