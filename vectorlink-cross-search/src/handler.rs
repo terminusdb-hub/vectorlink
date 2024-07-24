@@ -117,7 +117,8 @@ impl TaskHandler for VectorlinkTaskHandler {
                 eprintln!("wrote first 0");
                 let record_len = std::mem::size_of::<(VectorId, f32)>();
                 const CHUNK_SIZE: usize = 100;
-                for (chunk_index, c) in iter.chunks(CHUNK_SIZE).into_iter().enumerate() {
+                let mut record_offset = 0;
+                for c in iter.chunks(CHUNK_SIZE).into_iter() {
                     let results: Vec<Vec<(VectorId, f32)>> = c
                         .collect::<Vec<_>>()
                         .into_iter()
@@ -137,8 +138,9 @@ impl TaskHandler for VectorlinkTaskHandler {
                     for result in results {
                         // And now do something with that result
                         let data_len = record_len * result.len();
+                        record_offset += data_len;
                         result_index
-                            .write_u64::<NativeEndian>(data_len as u64)
+                            .write_u64::<NativeEndian>(record_offset as u64)
                             .unwrap();
                         unsafe {
                             let data_slice =
