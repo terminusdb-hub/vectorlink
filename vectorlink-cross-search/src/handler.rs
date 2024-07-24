@@ -121,8 +121,7 @@ impl TaskHandler for VectorlinkTaskHandler {
                 for c in iter.chunks(CHUNK_SIZE).into_iter() {
                     let results: Vec<Vec<(VectorId, f32)>> = c
                         .collect::<Vec<_>>()
-                        .into_iter()
-                        .par_bridge()
+                        .into_par_iter()
                         .map(|v| {
                             let mut result =
                                 hnsw.search_1024(parallel_hnsw::AbstractVector::Unstored(&v), sp);
