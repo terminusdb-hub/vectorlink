@@ -116,7 +116,7 @@ impl TaskHandler for VectorlinkTaskHandler {
                 result_index.write_u64::<NativeEndian>(0).unwrap();
                 eprintln!("wrote first 0");
                 let record_len = std::mem::size_of::<(VectorId, f32)>();
-                const CHUNK_SIZE: usize = 100;
+                const CHUNK_SIZE: usize = 1000;
                 let mut record_offset = 0;
                 for c in iter.chunks(CHUNK_SIZE).into_iter() {
                     let results: Vec<Vec<(VectorId, f32)>> = c
