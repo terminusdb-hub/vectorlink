@@ -27,14 +27,20 @@ fn main() {
     let next_size = index.read_u64::<NativeEndian>().unwrap();
 
     let buf_size = (next_size - size) as usize;
+    eprintln!("Expected buf size: {buf_size}");
     let mut buf: Vec<u8> = vec![0; buf_size];
 
     queues.seek(SeekFrom::Start(size)).unwrap();
     queues.read_exact(&mut buf).unwrap();
     let record_size = std::mem::size_of::<(VectorId, f32)>();
 
-    let queue: &[(VectorId, f32)] =
-        unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const (VectorId, f32), record_size) };
+    assert_eq!(buf_size % record_size, 0);
+    let queue: &[(VectorId, f32)] = unsafe {
+        std::slice::from_raw_parts(
+            buf.as_ptr() as *const (VectorId, f32),
+            buf_size / record_size,
+        )
+    };
 
     println!("{queue:?}");
 }
