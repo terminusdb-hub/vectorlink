@@ -1,0 +1,18 @@
+[package]
+name = "vectorlink-search-collation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.80"
+clap = { version = "4.5.4", features = ["derive"] }
+serde = { version = "1.0.198", features = ["derive"] }
+thiserror = "1.0.58"
+tokio = { version = "1.37.0", features = ["full"] }
+vectorlink-task = {path = "../vectorlink-task"}
+vectorlink = {path = "../vectorlink"}
+parallel-hnsw = { path = "../parallel-hnsw" }
+serde_json = "1.0.116"
+byteorder = "1.5.0"
+rayon = "1.10.0"
+itertools = "0.13.0"
