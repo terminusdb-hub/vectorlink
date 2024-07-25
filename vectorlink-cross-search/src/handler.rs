@@ -37,7 +37,7 @@ pub struct SearchRequest {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SearchProgress {
     vector_count: usize,
-    segment_count: usize,
+    segment_index: usize,
 }
 
 pub struct VectorlinkTaskHandler;
@@ -54,11 +54,23 @@ impl TaskHandler for VectorlinkTaskHandler {
     type Error = String;
 
     async fn initialize(
-        _live: TaskLiveness<Self::Init, Self::Progress>,
+        live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Progress, Self::Error> {
+        let request: SearchRequest = live.init().unwrap().unwrap();
+        let SearchRequest {
+            domain: _,
+            commit: _,
+            directory: _,
+            segment_start,
+            segment_vector_count: _,
+            segment_count: _,
+            output_dir: _,
+            distance_threshold: _,
+        } = request;
+
         Ok(SearchProgress {
             vector_count: 0,
-            segment_count: 0,
+            segment_index: segment_start,
         })
     }
     async fn process(
@@ -78,7 +90,7 @@ impl TaskHandler for VectorlinkTaskHandler {
         eprintln!("start process");
         let _state = live.progress().unwrap();
         let mut progress = live.progress().unwrap().unwrap().clone();
-        let segment_start = progress.segment_count;
+        let segment_start = progress.segment_index;
         progress.vector_count = 0;
         live.set_progress(progress).await.unwrap();
         eprintln!("reset progress to sane start");
@@ -165,7 +177,7 @@ impl TaskHandler for VectorlinkTaskHandler {
 
                 live.set_progress(SearchProgress {
                     vector_count: 0,
-                    segment_count: segment_index + 1,
+                    segment_index: segment_index + 1,
                 })
                 .unwrap();
             }
