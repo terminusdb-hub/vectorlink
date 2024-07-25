@@ -1,4 +1,7 @@
 use serde::{Deserialize, Serialize};
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub struct SearchParameters {
@@ -7,6 +10,7 @@ pub struct SearchParameters {
     pub probe_depth: usize,
     pub circulant_parameter_count: usize,
     pub random_link_count: usize,
+    #[serde(default = "default_true")]
     pub reorder_quantized: bool,
 }
 
