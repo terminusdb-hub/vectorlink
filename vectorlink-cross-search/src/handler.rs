@@ -98,7 +98,8 @@ impl TaskHandler for VectorlinkTaskHandler {
                 HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap()
             );
             eprintln!("loaded index");
-            let sp = SearchParameters::default();
+            let mut sp = SearchParameters::default();
+            sp.reorder_quantized = false;
 
             // TODO: this needs to loop through multiple segments
             let output_dir_path: PathBuf = output_dir.into();

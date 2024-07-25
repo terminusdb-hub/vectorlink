@@ -7,6 +7,7 @@ pub struct SearchParameters {
     pub probe_depth: usize,
     pub circulant_parameter_count: usize,
     pub random_link_count: usize,
+    pub reorder_quantized: bool,
 }
 
 impl Default for SearchParameters {
@@ -17,6 +18,7 @@ impl Default for SearchParameters {
             probe_depth: 2,
             circulant_parameter_count: 6,
             random_link_count: 0,
+            reorder_quantized: true,
         }
     }
 }
@@ -65,6 +67,7 @@ impl Default for BuildParameters {
                 probe_depth: 2,
                 circulant_parameter_count: 0,
                 random_link_count: 0,
+                reorder_quantized: true,
             },
             max_recall_threshold: None,
         }
@@ -89,6 +92,7 @@ impl Default for PqBuildParameters {
                 probe_depth: 2,
                 circulant_parameter_count: 0,
                 random_link_count: 0,
+                reorder_quantized: true,
             },
         }
     }

@@ -460,7 +460,11 @@ impl<
         let raw_v = self.comparator.lookup_abstract(v.clone());
         let quantized = self.quantizer.quantize(&raw_v);
         let result = self.hnsw.search(AbstractVector::Unstored(&quantized), sp);
-        self.pq_to_natural_distance_queue(v, result)
+        if sp.reorder_quantized {
+            self.pq_to_natural_distance_queue(v, result)
+        } else {
+            result
+        }
     }
 
     pub fn improve_index(
