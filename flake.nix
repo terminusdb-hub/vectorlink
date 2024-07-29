@@ -72,6 +72,10 @@
             type = "app";
             program = "${p.read-line-from-index}/bin/read-line-from-index";
           };
+          print-search-results = {
+            type = "app";
+            program = "${p.print-search-results}/bin/print-search-results";
+          };
         });
 
       devShells = forAllSystems (system :
