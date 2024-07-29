@@ -41,6 +41,7 @@ fn main() {
             buf_size / record_size,
         )
     };
-
-    println!("{queue:?}");
+    let queue: Vec<_> = queue.iter().map(|(a, b)| (a.0, b)).collect();
+    let js = serde_json::to_string(&queue).unwrap();
+    println!("{js}");
 }
