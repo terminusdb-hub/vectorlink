@@ -10,7 +10,9 @@ pub struct CollationRequest {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct CollationProgress;
+pub struct CollationProgress {
+    block: usize,
+}
 
 pub struct CollationTaskHandler;
 
@@ -27,7 +29,7 @@ impl TaskHandler for CollationTaskHandler {
     async fn initialize(
         _live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Progress, Self::Error> {
-        todo!()
+        Ok(CollationProgress { block: 0 })
     }
 
     async fn process(
