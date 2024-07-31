@@ -4,6 +4,7 @@ pub mod bigvec;
 pub mod parameters;
 pub mod pq;
 mod priority_queue;
+mod priority_queue_ring;
 pub mod progress;
 mod search;
 pub mod serialize;
