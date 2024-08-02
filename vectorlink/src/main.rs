@@ -572,6 +572,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
             let mut optimization_parameters = OptimizationParameters::default();
             optimization_parameters.recall_confidence = recall_confidence;
+            optimization_parameters.sp.reorder_quantized = false;
+
             let recall = hnsw.stochastic_recall(optimization_parameters);
             eprintln!("Recall: {recall}");
         }

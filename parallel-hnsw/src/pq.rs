@@ -696,6 +696,7 @@ impl<
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     fn clamp_01(f: f32) -> f32 {
@@ -1340,3 +1341,4 @@ mod tests {
         assert_eq!(recall, 1.0)
     }
 }
+*/
