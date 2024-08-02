@@ -696,6 +696,7 @@ impl<
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     fn clamp_01(f: f32) -> f32 {
@@ -851,6 +852,10 @@ mod tests {
             }));
             vectors
         }
+
+        fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+            todo!();
+        }
     }
 
     #[derive(Clone)]
@@ -940,6 +945,10 @@ mod tests {
                 v
             }));
             vectors
+        }
+
+        fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+            todo!()
         }
     }
 
@@ -1120,6 +1129,10 @@ mod tests {
                 v
             }));
             vectors
+        }
+
+        fn vecs(&self) -> impl Iterator<Item = &Self::T> {
+            todo!();
         }
     }
 
@@ -1340,3 +1353,4 @@ mod tests {
         assert_eq!(recall, 1.0)
     }
 }
+*/

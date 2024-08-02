@@ -1,46 +1,59 @@
 use crate::types::{EmptyValue, OrderedFloat};
+use std::fmt::Debug;
 
 pub struct PriorityQueueRing<'a, Id: Clone> {
     pub head: usize,
-    pub data: &'a [Id],
-    pub priorities: &'a [f32],
+    pub length: usize,
+    pub data: &'a mut [Id],
+    pub priorities: &'a mut [f32],
 }
 
 fn absolute_index(head: usize, priorities: &[f32], relative_idx: usize) -> usize {
-    if relative_idx < len(priorities) - head {
+    if relative_idx < priorities.len() - head {
         head + relative_idx
     } else {
-        relative_idx - (len(priorities) - head)
+        relative_idx - (priorities.len() - head)
     }
 }
 
 fn relative_index(head: usize, priorities: &[f32], absolute_index: usize) -> usize {
     if absolute_index < head {
-        absolute_index + (len(priorities) - head)
+        absolute_index + (priorities.len() - head)
     } else {
         absolute_index - head
     }
 }
 
-fn partition_point(head: usize, priorities: &[f32], point: f32) -> usize {
-    let first_half_point =
-        priorities[..head].partition_point(|d| OrderedFloat(*d) != OrderedFloat(point));
+#[derive(Debug)]
+pub enum Comparison {
+    Eq,
+    Lt,
+}
+
+fn partition_point(head: usize, priorities: &[f32], point: f32, cmp: Comparison) -> usize {
+    eprintln!("partition_point({head}, {priorities:?}, {point}, {cmp:?})");
+    let closure1 = |d: &f32| match cmp {
+        Comparison::Eq => OrderedFloat(*d) != OrderedFloat(point),
+        Comparison::Lt => OrderedFloat(*d) < OrderedFloat(point),
+    };
+    let closure2 = |d: &f32| match cmp {
+        Comparison::Eq => OrderedFloat(*d) != OrderedFloat(point),
+        Comparison::Lt => OrderedFloat(*d) < OrderedFloat(point),
+    };
+
+    let first_half_point = priorities[..head].partition_point(closure1);
     if first_half_point < head {
-        relative_index(head, priorities, first_half_point)
+        dbg!(relative_index(head, priorities, first_half_point))
     } else {
-        relative_index(
+        dbg!(relative_index(
             head,
             priorities,
-            priorities[head..].partition_point(|d| OrderedFloat(*d) != OrderedFloat(point)),
-        )
+            head + priorities[head..].partition_point(closure2),
+        ))
     }
 }
 
-fn len(head: usize, priorities: &[f32]) -> usize {
-    partition_point(head, priorities, f32::MAX)
-}
-
-impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, Id> {
+impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue + Debug> PriorityQueueRing<'a, Id> {
     pub fn is_empty(&'a self) -> bool {
         self.data.len() == 0 || self.data[self.head].is_empty()
     }
@@ -71,8 +84,8 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
         }
     }
 
-    pub fn partition_point(&self, point: f32) -> usize {
-        partition_point(self.head, self.priorities, point)
+    pub fn partition_point(&self, point: f32, cmp: Comparison) -> usize {
+        partition_point(self.head, self.priorities, point, cmp)
     }
 
     pub fn binary_search_from(&self, idx: usize, priority: f32) -> Result<usize, usize> {
@@ -84,7 +97,7 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
         } else {
             let result = self.priorities[self.absolute_index(idx)..]
                 .binary_search_by(|d0| OrderedFloat(*d0).cmp(&OrderedFloat(priority)));
-            if result.is_error() {
+            if result.is_err() {
                 let last_idx = result.unwrap_err();
                 if last_idx == self.capacity() {
                     self.priorities[..self.head]
@@ -105,7 +118,7 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
     }
 
     pub fn len(&self) -> usize {
-        len(self.head, self.priorities)
+        self.length
     }
 
     pub fn capacity(&self) -> usize {
@@ -114,7 +127,7 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
 
     pub fn data(&'a self) -> &'a [Id] {
         // note, this is unordered!
-        &self.data
+        self.data
     }
 
     pub fn absolute_index(&'a self, relative_index: usize) -> usize {
@@ -127,8 +140,9 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
 
     // Retuns the actual insertion point
     fn insert_at(&mut self, idx: usize, elt: Id, priority: f32) -> usize {
+        eprintln!("insert_at({idx}, {elt:?}, {priority})");
         let mut idx = idx;
-        let mut aidx = self.absolute_index(idx);
+        let mut aidx = dbg!(self.absolute_index(idx));
         if idx < self.data.len() && self.data[aidx] != elt {
             // walk through all elements with exactly the same priority as us
             while self.priorities[aidx] == priority && self.data[aidx] <= elt {
@@ -142,47 +156,52 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
                     return idx;
                 }
             }
+            let head = self.head;
+            let swap_start = self.length;
             let data = &mut self.data;
             let priorities = &mut self.priorities;
-            let swap_start = self.len();
 
             for i in (idx + 1..swap_start + 1).rev() {
-                if i == self.len() {
+                if i == priorities.len() {
                     continue;
                 }
-                let ai_minus_1 = self.absolute_index(i - 1);
-                let ai = self.absolute_index(i);
+                let ai_minus_1 = absolute_index(head, priorities, i - 1);
+                let ai = absolute_index(head, priorities, i);
                 data[ai] = data[ai_minus_1];
                 priorities[ai] = priorities[ai_minus_1];
             }
-            let aidx = self.absolute_index(idx);
+            let aidx = absolute_index(head, priorities, idx);
             data[aidx] = elt;
             priorities[aidx] = priority;
+        }
+        if idx < self.length {
+            self.length += 1
         }
         idx
     }
 
     pub fn insert(&mut self, elt: Id, priority: f32) -> usize {
-        let idx = self.partition_point(priority);
+        let idx = self.partition_point(priority, Comparison::Lt);
+        eprintln!("idx: {idx}");
         self.insert_at(idx, elt, priority)
     }
 
     pub fn merge<'b>(&mut self, other_priority_queue: &'b PriorityQueueRing<'b, Id>) -> bool {
         let mut did_something = false;
         let mut last_idx = 0;
-        for (other_idx, other_distance) in other_priority_queue.iter().enumerate() {
+        for (other_idx, (_, other_distance)) in other_priority_queue.iter().enumerate() {
             if last_idx > self.len() {
                 break;
             }
 
-            let i = self.binary_search_from(last_idx, *other_distance);
+            let i = self.binary_search_from(last_idx, other_distance);
 
             match i {
                 Ok(i) => {
                     // We need to walk to the beginning of the match
                     let mut start_idx = i + last_idx;
                     while start_idx != 0 {
-                        if self.priorities[self.absolute_index(start_idx - 1)] != *other_distance {
+                        if self.priorities[self.absolute_index(start_idx - 1)] != other_distance {
                             break;
                         } else {
                             start_idx -= 1;
@@ -191,7 +210,7 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
                     last_idx = self.insert_at(
                         start_idx,
                         other_priority_queue.data[other_priority_queue.absolute_index(other_idx)],
-                        *other_distance,
+                        other_distance,
                     );
                     did_something |= last_idx != self.data.len();
                 }
@@ -203,7 +222,7 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
                             i + last_idx,
                             other_priority_queue.data
                                 [other_priority_queue.absolute_index(other_idx)],
-                            *other_distance,
+                            other_distance,
                         );
                         did_something = true;
                     }
@@ -214,21 +233,33 @@ impl<'a, Id: PartialOrd + PartialEq + Copy + EmptyValue> PriorityQueueRing<'a, I
     }
 
     pub fn merge_pairs(&mut self, other: &[(Id, f32)]) -> bool {
-        let (ids, priorities): (Vec<Id>, Vec<f32>) = other.iter().copied().unzip();
-        self.merge(&ids, &priorities)
+        let (mut ids, mut priorities): (Vec<Id>, Vec<f32>) = other
+            .iter()
+            .take_while(|(_, d)| *d != f32::MAX)
+            .copied()
+            .unzip();
+
+        self.merge(&PriorityQueueRing {
+            length: ids.len(),
+            head: 0,
+            data: &mut ids,
+            priorities: &mut priorities,
+        })
     }
 
     pub fn iter(&'a self) -> PriorityQueueRingIter<'a, Id> {
         PriorityQueueRingIter {
             position: 0,
             head: self.head,
-            data_iter: &self.data,
-            priority_iter: &self.priorities,
+            data: self.data,
+            priorities: self.priorities,
         }
     }
 
     pub fn from_slices(data: &'a mut [Id], priorities: &'a mut [f32]) -> PriorityQueueRing<'a, Id> {
+        let length = priorities.partition_point(|d| OrderedFloat(*d) != OrderedFloat(f32::MAX));
         PriorityQueueRing {
+            length,
             head: 0,
             data,
             priorities,
@@ -240,14 +271,14 @@ pub struct PriorityQueueRingIter<'iter, Id> {
     position: usize,
     head: usize,
     data: &'iter [Id],
-    priority: &'iter [f32],
+    priorities: &'iter [f32],
 }
 
 impl<Id: PartialEq + Copy + EmptyValue> Iterator for PriorityQueueRingIter<'_, Id> {
     type Item = (Id, f32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.position == self.priority.len() {
+        if self.position == self.priorities.len() {
             None
         } else {
             let aidx = absolute_index(self.head, self.priorities, self.position);
@@ -256,14 +287,14 @@ impl<Id: PartialEq + Copy + EmptyValue> Iterator for PriorityQueueRingIter<'_, I
                 None
             } else {
                 self.position += 1;
-                Some((data_head, self.priority[aidx]))
+                Some((data_head, self.priorities[aidx]))
             }
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod priority_queue_ring_tests {
     use crate::{priority_queue_ring::PriorityQueueRing, NodeId};
 
     #[test]
@@ -334,7 +365,7 @@ mod tests {
         let mut priorities2 = vec![0.1, 0.3, 0.5];
         let priority_queue2 = PriorityQueueRing::from_slices(&mut data2, &mut priorities2);
 
-        priority_queue1.merge_from(&priority_queue2);
+        priority_queue1.merge(&priority_queue2);
         assert_eq!(data1, vec![NodeId(0), NodeId(1), NodeId(2)]);
         assert_eq!(priorities1, vec![0.0, 0.1, 0.2]);
     }
@@ -360,7 +391,7 @@ mod tests {
 
         let priority_queue2 = PriorityQueueRing::from_slices(&mut data2, &mut priorities2);
 
-        let result = priority_queue.merge_from(&priority_queue2);
+        let result = priority_queue.merge(&priority_queue2);
         assert!(!result);
         assert_eq!(data, vec![NodeId(0), NodeId(3), NodeId(5)]);
     }
