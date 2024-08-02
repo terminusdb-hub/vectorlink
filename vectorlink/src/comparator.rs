@@ -17,6 +17,7 @@ use vectorlink_store::range::LoadedSizedVectorRange;
 
 use parallel_hnsw::{pq, Comparator, Serializable, SerializationError, VectorId};
 
+use crate::vecmath::simd::normalized_cosine_distance_quantized_16_1024;
 use crate::vecmath::{
     self, normalize_cosine_distance, normalized_cosine_distance_1024, CosineDistance16For1024,
     Embedding1024, EuclideanDistance16, EuclideanDistance16For1024, EuclideanDistance32,
@@ -316,7 +317,7 @@ impl Serializable for OpenAIComparator {
     }
 }
 
-struct MemoizedPartialDistances {
+pub struct MemoizedPartialDistances {
     partial_distances: Vec<bf16>,
     partial_norms: Vec<bf16>,
     size: usize,
@@ -503,7 +504,7 @@ impl MemoizedPartialDistances {
         }
     }
 
-    fn partial_distance(&self, i: u16, j: u16) -> f32 {
+    pub fn partial_distance(&self, i: u16, j: u16) -> f32 {
         let offset = match i.cmp(&j) {
             std::cmp::Ordering::Equal => {
                 // Early bail
@@ -516,7 +517,7 @@ impl MemoizedPartialDistances {
         distance.to_f32()
     }
 
-    fn partial_norm(&self, i: u16) -> f32 {
+    pub fn partial_norm(&self, i: u16) -> f32 {
         self.partial_norms[i as usize].to_f32()
     }
 }
@@ -905,23 +906,7 @@ where
     }
 
     fn compare_raw(&self, v1: &Self::T, v2: &Self::T) -> f32 {
-        let mut partial_distances = 0.0_f32;
-        let mut partial_norm_1 = 0.0_f32;
-        let mut partial_norm_2 = 0.0_f32;
-        for ix in 0..QUANTIZED_16_EMBEDDING_LENGTH_1024 {
-            let partial_1 = v1[ix];
-            let partial_2 = v2[ix];
-            partial_distances += self.cc.partial_distance(partial_1, partial_2);
-            partial_norm_1 += self.cc.distances.partial_norm(partial_1);
-            partial_norm_2 += self.cc.distances.partial_norm(partial_2);
-        }
-        let norm_1 = partial_norm_1.sqrt();
-        let norm_2 = partial_norm_2.sqrt();
-        let dot_product = partial_distances;
-        if dot_product == 0.0 || dot_product == -0.0 {
-            eprintln!("v1: {v1:?}, v2: {v2:?}");
-        }
-        normalize_cosine_distance(dot_product / (norm_1 * norm_2))
+        normalized_cosine_distance_quantized_16_1024(v1, v2, &self.cc.distances)
     }
 }
 

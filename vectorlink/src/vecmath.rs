@@ -391,8 +391,50 @@ pub fn sum_384(vec: &[f32; 384]) -> f32 {
 }
 
 pub mod simd {
+
+    use crate::comparator::{
+        ArrayCentroidComparator, Centroid16Comparator1024, MemoizedPartialDistances,
+    };
+
     use super::*;
     use std::simd::{f32x16, f32x4, f32x8, num::SimdFloat, Simd};
+
+    pub fn normalized_cosine_distance_quantized_16_1024(
+        v1: &Quantized16Embedding1024,
+        v2: &Quantized16Embedding1024,
+        dc: &MemoizedPartialDistances,
+    ) -> f32 {
+        let mut dot_product = <f32x16>::splat(0.);
+        let mut norm_1 = <f32x16>::splat(0.);
+        let mut norm_2 = <f32x16>::splat(0.);
+
+        let mut norm_array_1 = [0.0f32; 16];
+        let mut norm_array_2 = [0.0f32; 16];
+        for x in 0..4 {
+            for i in 0..16 {
+                norm_array_1[i] = dc.partial_norm(v1[x * 16 + i]);
+                norm_array_2[i] = dc.partial_norm(v2[x * 16 + i]);
+            }
+            let a = <f32x16>::from_array(norm_array_1);
+            let b = <f32x16>::from_array(norm_array_2);
+            norm_1 += a;
+            norm_2 += b;
+        }
+
+        let mut distances = [0.0f32; 16];
+        for x in 0..4 {
+            for i in 0..16 {
+                let idx1 = v1[x * 16 + i];
+                let idx2 = v2[x * 16 + i];
+                distances[i] = dc.partial_distance(idx1, idx2);
+            }
+            let d = <f32x16>::from_array(distances);
+            dot_product += d;
+        }
+        normalize_cosine_distance(
+            dot_product.reduce_sum() / (norm_1.reduce_sum().sqrt() * norm_2.reduce_sum().sqrt()),
+        )
+    }
 
     pub fn normalized_cosine_distance_simd(left: &Embedding, right: &Embedding) -> f32 {
         let mut sum = <f32x16>::splat(0.);
