@@ -26,8 +26,8 @@ use urlencoding::encode;
 use crate::{
     comparator::{
         ArrayCentroidComparator, Centroid16Comparator, Centroid16Comparator1024,
-        Centroid8Comparator, Disk1024Comparator, DiskOpenAIComparator, DiskOpenAIComparator,
-        OpenAIComparator, Quantized16Comparator, Quantized16Comparator1024, Quantized8Comparator,
+        Centroid8Comparator, Disk1024Comparator, DiskOpenAIComparator, OpenAIComparator,
+        Quantized16Comparator, Quantized16Comparator1024, Quantized8Comparator,
     },
     configuration::HnswConfiguration,
     domain::Domain,
