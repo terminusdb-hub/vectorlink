@@ -23,7 +23,8 @@ use crate::vecmath::{
     EuclideanDistance32, EuclideanDistance4, EuclideanDistance8, EuclideanDistance8For1024,
     Quantized16Embedding, Quantized16Embedding1024, Quantized32Embedding, Quantized4Embedding,
     Quantized8Embedding, Quantized8Embedding1024, CENTROID_16_LENGTH, CENTROID_32_LENGTH,
-    CENTROID_4_LENGTH, CENTROID_8_LENGTH, QUANTIZED_16_EMBEDDING_LENGTH,
+    CENTROID_4_LENGTH, CENTROID_8_LENGTH, EMBEDDING_BYTE_LENGTH, EMBEDDING_BYTE_LENGTH_1024,
+    EMBEDDING_LENGTH, EMBEDDING_LENGTH_1024, QUANTIZED_16_EMBEDDING_LENGTH,
     QUANTIZED_16_EMBEDDING_LENGTH_1024, QUANTIZED_32_EMBEDDING_LENGTH,
     QUANTIZED_4_EMBEDDING_LENGTH, QUANTIZED_8_EMBEDDING_LENGTH, QUANTIZED_8_EMBEDDING_LENGTH_1024,
 };
@@ -86,7 +87,7 @@ impl Serializable for DiskOpenAIComparator {
         let mut contents = String::new();
         comparator_file.read_to_string(&mut contents)?;
         let ComparatorMeta { domain_name, .. } = serde_json::from_str(&contents)?;
-        let domain = store.get_domain(&domain_name)?;
+        let domain = store.get_domain_sized(&domain_name, EMBEDDING_BYTE_LENGTH)?;
         Ok(DiskOpenAIComparator {
             domain: domain.name().to_owned(),
             vectors: Arc::new(domain.immutable_file().into_sized()),
@@ -197,7 +198,7 @@ impl Serializable for Disk1024Comparator {
         let mut contents = String::new();
         comparator_file.read_to_string(&mut contents)?;
         let ComparatorMeta { domain_name, .. } = serde_json::from_str(&contents)?;
-        let domain = store.get_domain(&domain_name)?;
+        let domain = store.get_domain_sized(&domain_name, EMBEDDING_BYTE_LENGTH_1024)?;
         Ok(Disk1024Comparator {
             domain: domain.name().to_owned(),
             vectors: Arc::new(domain.immutable_file().into_sized()),
@@ -308,7 +309,7 @@ impl Serializable for OpenAIComparator {
         let mut contents = String::new();
         comparator_file.read_to_string(&mut contents)?;
         let ComparatorMeta { domain_name, .. } = serde_json::from_str(&contents)?;
-        let domain = store.get_domain(&domain_name)?;
+        let domain = store.get_domain_sized(&domain_name, EMBEDDING_BYTE_LENGTH)?;
         Ok(OpenAIComparator {
             domain_name,
             range: Arc::new(domain.all_vecs()?),

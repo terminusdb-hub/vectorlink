@@ -183,10 +183,11 @@ pub async fn extend_vector_store<P0: AsRef<Path>, P1: AsRef<Path>>(
     vectorlink_path: P0,
     vec_path: P1,
     size: usize,
+    vector_size: usize,
 ) -> Result<usize, io::Error> {
     let vs_path: PathBuf = vectorlink_path.as_ref().into();
     let vs: VectorStore = VectorStore::new(vs_path, size);
-    let domain = vs.get_domain(domain)?;
+    let domain = vs.get_domain_sized(domain, vector_size)?;
     Ok(domain.concatenate_file(&vec_path)?.0)
 }
 
@@ -230,7 +231,7 @@ pub async fn index_using_operations_and_vectors<
     let vs_path_buf: PathBuf = vectorlink_path.as_ref().into();
     let vs: VectorStore = VectorStore::new(&vs_path_buf, size);
     //    let index_id = create_index_name(domain, commit);
-    let domain_obj = vs.get_domain(domain)?;
+    let domain_obj = vs.get_domain_sized(domain, model.size())?;
     let mut op_file = File::open(&op_file_path).await?;
     let mut op_stream = get_operations_from_file(&mut op_file).await?;
     let mut i: usize = 0;
@@ -550,7 +551,8 @@ pub async fn index_from_operations_file<P: AsRef<Path>>(
     let id_offset: u64;
     if extended_file.metadata().await?.size() != 8 {
         eprintln!("Concatenating to vector store");
-        id_offset = extend_vector_store(domain, &vectorlink_path, vector_path, size).await? as u64;
+        id_offset = extend_vector_store(domain, &vectorlink_path, vector_path, size, model.size())
+            .await? as u64;
         extended_file.write_u64(id_offset).await?;
     } else {
         eprintln!("Already concatenated");
@@ -595,7 +597,8 @@ pub fn index_domain<P: AsRef<Path>>(
 
     let vs_path_buf: PathBuf = vectorlink_path.as_ref().into();
     let vs: VectorStore = VectorStore::new(vs_path_buf, size);
-    let domain_obj = vs.get_domain(domain)?;
+
+    let domain_obj = vs.get_domain_sized(domain, model.size())?;
 
     let index_name = create_index_name(domain, commit);
 

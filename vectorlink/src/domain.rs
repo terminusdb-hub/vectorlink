@@ -28,16 +28,12 @@ impl Domain {
         self.file().num_vecs()
     }
 
-    pub fn open<P: AsRef<Path>>(dir: P, name: &str) -> io::Result<Self> {
+    pub fn open_sized<P: AsRef<Path>>(dir: P, name: &str, size: usize) -> io::Result<Self> {
         let mut path = dir.as_ref().to_path_buf();
         let encoded_name = encode(name);
         path.push(format!("{encoded_name}.vecs"));
         // TODO: this place should read the embedding length from a configuration file
-        let file = RwLock::new(VectorFile::open_create(
-            &path,
-            EMBEDDING_BYTE_LENGTH_1024,
-            true,
-        )?);
+        let file = RwLock::new(VectorFile::open_create(&path, size, true)?);
 
         Ok(Domain {
             name: name.to_string(),

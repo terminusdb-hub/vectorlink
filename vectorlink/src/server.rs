@@ -456,7 +456,9 @@ impl Service {
             Ok(hnsw.clone())
         } else {
             let mut path = self.path.clone();
-            let domain = self.vector_store.get_domain(index_id)?;
+            let domain = self
+                .vector_store
+                .get_domain_sized(index_id, Model::Ada2.size())?;
             let index_path = index_serialization_path(path, index_id);
             Ok(Arc::new(OpenAIHnsw::deserialize(
                 index_path,

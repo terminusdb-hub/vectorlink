@@ -17,7 +17,10 @@ use thiserror::Error;
 use tiktoken_rs::{cl100k_base, CoreBPE};
 use tokio::sync::{Mutex, Notify, RwLock};
 
-use crate::vecmath::Embedding;
+use crate::vecmath::{
+    Embedding, EMBEDDING_BYTE_LENGTH, EMBEDDING_BYTE_LENGTH_1024, EMBEDDING_LENGTH,
+    EMBEDDING_LENGTH_1024,
+};
 
 #[derive(Serialize)]
 struct EmbeddingRequest<'a> {
@@ -196,6 +199,13 @@ impl Model {
             Self::Ada2 => "text-embedding-ada-002",
             Self::Small3 => "text-embedding-3-small",
             Self::MxBai => "mxbai",
+        }
+    }
+
+    pub fn size(self) -> usize {
+        match self {
+            Model::Ada2 | Model::Small3 => EMBEDDING_BYTE_LENGTH,
+            Model::MxBai => EMBEDDING_BYTE_LENGTH_1024,
         }
     }
 }

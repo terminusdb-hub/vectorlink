@@ -42,7 +42,7 @@ impl VectorStore {
         }
     }
 
-    pub fn get_domain(&self, name: &str) -> io::Result<Arc<Domain>> {
+    pub fn get_domain_sized(&self, name: &str, size: usize) -> io::Result<Arc<Domain>> {
         let domains = self.domains.read().unwrap();
         if let Some(domain) = domains.get(name) {
             Ok(domain.clone())
@@ -52,7 +52,7 @@ impl VectorStore {
             if let Some(domain) = domains.get(name) {
                 Ok(domain.clone())
             } else {
-                let domain = Arc::new(Domain::open(&self.dir, name)?);
+                let domain = Arc::new(Domain::open_sized(&self.dir, name, size)?);
                 domains.insert(name.to_string(), domain.clone());
 
                 Ok(domain)
