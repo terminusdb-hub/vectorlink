@@ -187,6 +187,7 @@ async fn execute_request_and_get_bytes(
 pub enum Model {
     Ada2,
     Small3,
+    MxBai,
 }
 
 impl Model {
@@ -194,6 +195,7 @@ impl Model {
         match self {
             Self::Ada2 => "text-embedding-ada-002",
             Self::Small3 => "text-embedding-3-small",
+            Self::MxBai => "mxbai",
         }
     }
 }

@@ -26,8 +26,8 @@ use urlencoding::encode;
 use crate::{
     comparator::{
         ArrayCentroidComparator, Centroid16Comparator, Centroid16Comparator1024,
-        Centroid8Comparator, Disk1024Comparator, DiskOpenAIComparator, OpenAIComparator,
-        Quantized16Comparator, Quantized16Comparator1024, Quantized8Comparator,
+        Centroid8Comparator, Disk1024Comparator, DiskOpenAIComparator, DiskOpenAIComparator,
+        OpenAIComparator, Quantized16Comparator, Quantized16Comparator1024, Quantized8Comparator,
     },
     configuration::HnswConfiguration,
     domain::Domain,
@@ -289,113 +289,218 @@ fn perform_indexing(
     eprintln!("ready to generate hnsw");
     // NOTE: This should be a switch over the configurations
     // defined in HnswConfiguration
-    let hnsw = if quantize_hnsw {
-        let number_of_centroids = 65_535;
+    match model {
+        Model::Ada2 | Model::Small3 => {
+            let hnsw = if quantize_hnsw {
+                let number_of_centroids = 65_535;
 
-        let comparator = Disk1024Comparator::new(
-            domain_obj.name().to_owned(),
-            Arc::new(domain_obj.immutable_file().into_sized()),
-        );
-        let pq_build_parameters = PqBuildParameters::default();
-
-        let quantizer_path = staging_file.join("quantizer");
-        let centroid_quantizer_result = keepalive!(
-            progress,
-            HnswQuantizer::<
-                EMBEDDING_LENGTH_1024,
-                CENTROID_16_LENGTH,
-                QUANTIZED_16_EMBEDDING_LENGTH_1024,
-                Centroid16Comparator1024,
-            >::deserialize(&quantizer_path, ())
-        );
-        let comparator_path = staging_file.join("hnsw/comparator");
-        let deserialization_result = centroid_quantizer_result.and_then(|centroid_quantizer| {
-            let quantized_comparator_result = keepalive!(
-                progress,
-                Quantized16Comparator1024::deserialize(
-                    &comparator_path,
-                    centroid_quantizer.comparator().clone(),
-                )
-            );
-            quantized_comparator_result
-                .map(|quantized_comparator| (centroid_quantizer, quantized_comparator))
-        });
-        let (vids, centroid_quantizer, quantized_comparator) = match deserialization_result {
-            Ok((centroid_quantizer, quantized_comparator)) => (
-                (0..comparator.num_vecs()).map(VectorId).collect(),
-                centroid_quantizer,
-                quantized_comparator,
-            ),
-            _ => {
-                let (centroid_hnsw, quantized_comparator) = QuantizedHnsw::<
-                    EMBEDDING_LENGTH_1024,
-                    CENTROID_16_LENGTH,
-                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
-                    Centroid16Comparator1024,
-                    Quantized16Comparator1024,
-                    Disk1024Comparator,
-                >::generate_centroid_hnsw(
-                    comparator.clone(),
-                    number_of_centroids,
-                    pq_build_parameters.centroids,
-                    progress,
+                let comparator = DiskOpenAIComparator::new(
+                    domain_obj.name().to_owned(),
+                    Arc::new(domain_obj.immutable_file().into_sized()),
                 );
+                let pq_build_parameters = PqBuildParameters::default();
 
-                let centroid_quantizer: HnswQuantizer<
-                    EMBEDDING_LENGTH_1024,
-                    CENTROID_16_LENGTH,
-                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
-                    Centroid16Comparator1024,
-                > = HnswQuantizer::new(centroid_hnsw, pq_build_parameters);
+                let quantizer_path = staging_file.join("quantizer");
+                let centroid_quantizer_result = keepalive!(
+                    progress,
+                    HnswQuantizer::<
+                        EMBEDDING_LENGTH,
+                        CENTROID_16_LENGTH,
+                        QUANTIZED_16_EMBEDDING_LENGTH,
+                        Centroid16Comparator,
+                    >::deserialize(&quantizer_path, ())
+                );
+                let comparator_path = staging_file.join("hnsw/comparator");
+                let deserialization_result =
+                    centroid_quantizer_result.and_then(|centroid_quantizer| {
+                        let quantized_comparator_result = keepalive!(
+                            progress,
+                            Quantized16Comparator::deserialize(
+                                &comparator_path,
+                                centroid_quantizer.comparator().clone(),
+                            )
+                        );
+                        quantized_comparator_result
+                            .map(|quantized_comparator| (centroid_quantizer, quantized_comparator))
+                    });
+                let (vids, centroid_quantizer, quantized_comparator) = match deserialization_result
+                {
+                    Ok((centroid_quantizer, quantized_comparator)) => (
+                        (0..comparator.num_vecs()).map(VectorId).collect(),
+                        centroid_quantizer,
+                        quantized_comparator,
+                    ),
+                    _ => {
+                        let (centroid_hnsw, quantized_comparator) = QuantizedHnsw::<
+                            EMBEDDING_LENGTH,
+                            CENTROID_16_LENGTH,
+                            QUANTIZED_16_EMBEDDING_LENGTH,
+                            Centroid16Comparator,
+                            Quantized16Comparator,
+                            DiskOpenAIComparator,
+                        >::generate_centroid_hnsw(
+                            comparator.clone(),
+                            number_of_centroids,
+                            pq_build_parameters.centroids,
+                            progress,
+                        );
 
-                let (vids, centroid_quantizer, quantized_comparator) = QuantizedHnsw::<
-                    EMBEDDING_LENGTH_1024,
+                        let centroid_quantizer: HnswQuantizer<
+                            EMBEDDING_LENGTH,
+                            CENTROID_16_LENGTH,
+                            QUANTIZED_16_EMBEDDING_LENGTH,
+                            Centroid16Comparator,
+                        > = HnswQuantizer::new(centroid_hnsw, pq_build_parameters);
+
+                        let (vids, centroid_quantizer, quantized_comparator) = QuantizedHnsw::<
+                            EMBEDDING_LENGTH,
+                            CENTROID_16_LENGTH,
+                            QUANTIZED_16_EMBEDDING_LENGTH,
+                            Centroid16Comparator,
+                            Quantized16Comparator,
+                            DiskOpenAIComparator,
+                        >::perform_quantization(
+                            comparator.clone(),
+                            centroid_quantizer,
+                            quantized_comparator,
+                            progress,
+                        );
+                        keepalive!(progress, centroid_quantizer.serialize(quantizer_path))?;
+                        keepalive!(progress, quantized_comparator.serialize(comparator_path))?;
+                        (vids, centroid_quantizer, quantized_comparator)
+                    }
+                };
+                let quantized_hnsw: QuantizedHnsw<
+                    EMBEDDING_LENGTH,
                     CENTROID_16_LENGTH,
-                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
-                    Centroid16Comparator1024,
-                    Quantized16Comparator1024,
-                    Disk1024Comparator,
-                >::perform_quantization(
-                    comparator.clone(),
+                    QUANTIZED_16_EMBEDDING_LENGTH,
+                    Centroid16Comparator,
+                    Quantized16Comparator,
+                    DiskOpenAIComparator,
+                > = QuantizedHnsw::new_with_quantized_vectors(
+                    comparator,
+                    pq_build_parameters,
+                    vids,
                     centroid_quantizer,
                     quantized_comparator,
                     progress,
                 );
-                keepalive!(progress, centroid_quantizer.serialize(quantizer_path))?;
-                keepalive!(progress, quantized_comparator.serialize(comparator_path))?;
-                (vids, centroid_quantizer, quantized_comparator)
-            }
-        };
-        let quantized_hnsw: QuantizedHnsw<
-            EMBEDDING_LENGTH_1024,
-            CENTROID_16_LENGTH,
-            QUANTIZED_16_EMBEDDING_LENGTH_1024,
-            Centroid16Comparator1024,
-            Quantized16Comparator1024,
-            Disk1024Comparator,
-        > = QuantizedHnsw::new_with_quantized_vectors(
-            comparator,
-            pq_build_parameters,
-            vids,
-            centroid_quantizer,
-            quantized_comparator,
-            progress,
-        );
-        HnswConfiguration::Quantized1024By16(model, quantized_hnsw)
-    } else {
-        // Currently not implemented
-        todo!("We currently don't have a configuraton for 1024 unquantized")
-        /*
-        let build_parameters = BuildParameters::default();
-        let hnsw = Hnsw::generate(comparator, vecs, build_parameters         HnswConfiguration::Unquantized1024(model, hnsw)
-         */
+                HnswConfiguration::SmallQuantizedOpenAi(model, quantized_hnsw)
+            } else {
+                panic!("No unquantized 1024 available");
+            };
+            eprintln!("done generating hnsw");
+            keepalive!(progress, hnsw.serialize(&staging_file))?;
+            eprintln!("done serializing hnsw");
+            eprintln!("renaming {staging_file:?} to {final_file:?}");
+            std::fs::rename(&staging_file, &final_file)?;
+        }
+        Model::MxBai => {
+            let hnsw = if quantize_hnsw {
+                let number_of_centroids = 65_535;
+
+                let comparator = Disk1024Comparator::new(
+                    domain_obj.name().to_owned(),
+                    Arc::new(domain_obj.immutable_file().into_sized()),
+                );
+                let pq_build_parameters = PqBuildParameters::default();
+
+                let quantizer_path = staging_file.join("quantizer");
+                let centroid_quantizer_result = keepalive!(
+                    progress,
+                    HnswQuantizer::<
+                        EMBEDDING_LENGTH_1024,
+                        CENTROID_16_LENGTH,
+                        QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                        Centroid16Comparator1024,
+                    >::deserialize(&quantizer_path, ())
+                );
+                let comparator_path = staging_file.join("hnsw/comparator");
+                let deserialization_result =
+                    centroid_quantizer_result.and_then(|centroid_quantizer| {
+                        let quantized_comparator_result = keepalive!(
+                            progress,
+                            Quantized16Comparator1024::deserialize(
+                                &comparator_path,
+                                centroid_quantizer.comparator().clone(),
+                            )
+                        );
+                        quantized_comparator_result
+                            .map(|quantized_comparator| (centroid_quantizer, quantized_comparator))
+                    });
+                let (vids, centroid_quantizer, quantized_comparator) = match deserialization_result
+                {
+                    Ok((centroid_quantizer, quantized_comparator)) => (
+                        (0..comparator.num_vecs()).map(VectorId).collect(),
+                        centroid_quantizer,
+                        quantized_comparator,
+                    ),
+                    _ => {
+                        let (centroid_hnsw, quantized_comparator) = QuantizedHnsw::<
+                            EMBEDDING_LENGTH_1024,
+                            CENTROID_16_LENGTH,
+                            QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                            Centroid16Comparator1024,
+                            Quantized16Comparator1024,
+                            Disk1024Comparator,
+                        >::generate_centroid_hnsw(
+                            comparator.clone(),
+                            number_of_centroids,
+                            pq_build_parameters.centroids,
+                            progress,
+                        );
+
+                        let centroid_quantizer: HnswQuantizer<
+                            EMBEDDING_LENGTH_1024,
+                            CENTROID_16_LENGTH,
+                            QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                            Centroid16Comparator1024,
+                        > = HnswQuantizer::new(centroid_hnsw, pq_build_parameters);
+
+                        let (vids, centroid_quantizer, quantized_comparator) = QuantizedHnsw::<
+                            EMBEDDING_LENGTH_1024,
+                            CENTROID_16_LENGTH,
+                            QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                            Centroid16Comparator1024,
+                            Quantized16Comparator1024,
+                            Disk1024Comparator,
+                        >::perform_quantization(
+                            comparator.clone(),
+                            centroid_quantizer,
+                            quantized_comparator,
+                            progress,
+                        );
+                        keepalive!(progress, centroid_quantizer.serialize(quantizer_path))?;
+                        keepalive!(progress, quantized_comparator.serialize(comparator_path))?;
+                        (vids, centroid_quantizer, quantized_comparator)
+                    }
+                };
+                let quantized_hnsw: QuantizedHnsw<
+                    EMBEDDING_LENGTH_1024,
+                    CENTROID_16_LENGTH,
+                    QUANTIZED_16_EMBEDDING_LENGTH_1024,
+                    Centroid16Comparator1024,
+                    Quantized16Comparator1024,
+                    Disk1024Comparator,
+                > = QuantizedHnsw::new_with_quantized_vectors(
+                    comparator,
+                    pq_build_parameters,
+                    vids,
+                    centroid_quantizer,
+                    quantized_comparator,
+                    progress,
+                );
+                HnswConfiguration::Quantized1024By16(model, quantized_hnsw)
+            } else {
+                panic!("No unquantized 1024 available");
+            };
+            eprintln!("done generating hnsw");
+            keepalive!(progress, hnsw.serialize(&staging_file))?;
+            eprintln!("done serializing hnsw");
+            eprintln!("renaming {staging_file:?} to {final_file:?}");
+            std::fs::rename(&staging_file, &final_file)?;
+        }
     };
-    eprintln!("done generating hnsw");
-    keepalive!(progress, hnsw.serialize(&staging_file))?;
-    eprintln!("done serializing hnsw");
-    eprintln!("renaming {staging_file:?} to {final_file:?}");
-    std::fs::rename(&staging_file, &final_file)?;
-    eprintln!("renamed hnsw");
     Ok(())
 }
 
