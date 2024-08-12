@@ -35,6 +35,10 @@ impl TaskHandler for CollationTaskHandler {
     async fn process(
         mut _live: TaskLiveness<Self::Init, Self::Progress>,
     ) -> Result<Self::Complete, Self::Error> {
+        // Read file from EFS
+        // Load fragment of vectors in addition to index into memory
+        // perform matrix product
+
         todo!();
     }
 }
