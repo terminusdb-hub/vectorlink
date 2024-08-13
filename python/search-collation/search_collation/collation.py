@@ -17,8 +17,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # 1. First, load match file.
-    input_file = f"{input_file_prefix}.match"
-    input_index = f"{input_file_index}.idx"
+    input_file = f"{input_prefix}.queues"
+    input_index = f"{input_prefix}.index"
 
     pair_size = sizeof(Pair)
     result = []
