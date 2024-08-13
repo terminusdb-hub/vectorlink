@@ -1,6 +1,7 @@
 import ctypes
 import struct
 import argparse
+import sys
 
 class Pair(ctypes.Structure):
     __fields__ = [('id', ctypes.c_ulong),
@@ -22,6 +23,8 @@ if __name__ == '__main__':
     input_index = f"{input_prefix}.index"
 
     pair_size = ctypes.sizeof(Pair)
+    print(f"pair size: {pair_size}")
+    sys.exit(0)
     result = []
     with open(input_index, 'rb') as idx:
         idx_buf = idx.read()
