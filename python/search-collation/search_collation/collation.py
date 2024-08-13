@@ -29,8 +29,8 @@ if __name__ == '__main__':
         with open(input_file, 'rb') as i:
             file_buf = i.read()
             for i in range(0, ulongs_in_file):
-                start = struct.unpack_from("<L", file_buf, i * 8)
-                end = struct.unpack_from("<L", file_buf, (i+1) * 8)
+                start = struct.unpack_from("<L", file_buf, i * 8)[0]
+                end = struct.unpack_from("<L", file_buf, (i+1) * 8)[0]
                 size = int( (end - start) / pair_size)
                 array = (Pair * size).from_buffer(file_buf, start)
                 result.append(array)
