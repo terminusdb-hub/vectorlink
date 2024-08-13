@@ -38,6 +38,8 @@ if __name__ == '__main__':
                     pass
                 #print(f"size: {size}")
                 queue_buf = ifile.read(size)
+                if len(qeue_buf) % size != 0:
+                    print(f"queue_buf length: {len(queue_buf)}, size: {size}")
                 array = struct.iter_unpack("<Qf", queue_buf)
                 result[i] = []
                 for (vid, _) in list(array):
