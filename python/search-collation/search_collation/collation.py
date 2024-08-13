@@ -20,18 +20,20 @@ if __name__ == '__main__':
     pair_size = struct.calcsize("<Lf")
     # print(f"pair size: {pair_size}")
     # sys.exit(0)
-    result = []
+    result = {}
     with open(input_index, 'rb') as idx:
         idx_buf = idx.read()
         ulongs_in_file = min(10, int(len(idx_buf) / 8))
         with open(input_file, 'rb') as i:
-            file_buf = i.read()
             for i in range(0, ulongs_in_file):
                 start = struct.unpack_from("<L", file_buf, i * 8)[0]
                 end = struct.unpack_from("<L", file_buf, (i+1) * 8)[0]
                 size = int( (end - start) / pair_size)
-                array = struct.iter_unpack("<Lf", file_buf[start:end])
-                result.append(list(array))
+                queue_buf = i.read(size)
+                array = struct.iter_unpack("<Lf", queue_buf)
+                result[i] = []
+                for (vid, _) in list(array):
+                    result[i].append(vid)
 
     print(result)
     # 2. Prescan vectors for loading from the match file
