@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "vectorlink-collation"
+name = "search-collation"
 version = "0.1.0"
 description = ""
 authors = ["Gavin Mendel-Gleason <gavin@terminusdb.com>"]
@@ -16,4 +16,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-collation-server = "vectorlink_collation.collation_etcd:main"
+collation-server = "search_collation.collation_etcd:main"

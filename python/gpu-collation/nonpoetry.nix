@@ -1,7 +1,7 @@
 { pkgs }:
 with pkgs.python311Packages;
 buildPythonPackage rec {
-  name = "vectorlink-collation";
+  name = "search-collation";
   pyproject = true;
   src = ./.;
 

@@ -2,7 +2,7 @@
 with pkgs;
 with pkgs.python311Packages;
 buildPythonPackage rec {
-  name = "vectorlink-collation";
+  name = "search-collation";
   src = ./.;
   format = "pyproject";
   propagatedBuildInputs = [
