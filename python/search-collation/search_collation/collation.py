@@ -2,7 +2,7 @@ import ctypes
 import struct
 import argparse
 
-class Pair(struct.Struct):
+class Pair(ctypes.Structure):
     __fields__ = [('id', ctypes.c_ulong),
                   ('distance', ctypes.c_float)]
 
