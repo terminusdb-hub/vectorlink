@@ -1,7 +1,7 @@
 import ctypes
 import struct
 
-class Pair(struct.Structure):
+class Pair(struct.Struct):
     __fields__ = [('id', c_ulong),
                   ('distance', c_float)]
 
