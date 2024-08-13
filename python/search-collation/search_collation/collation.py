@@ -39,9 +39,10 @@ if __name__ == '__main__':
                 queue_buf = ifile.read(size)
                 if len(queue_buf) % pair_size != 0:
                     print(f"queue_buf length: {len(queue_buf)}, size: {size}")
-                array = struct.iter_unpack("<Qf", queue_buf)
+                # Do I need this for alignment?
+                array = struct.iter_unpack("<Qff", queue_buf)
                 result[i] = []
-                for (vid, _) in list(array):
+                for (vid, _, _) in list(array):
                     result[i].append(vid)
 
     # 2. Prescan vectors for loading from the match file
