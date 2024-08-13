@@ -4,8 +4,8 @@ import argparse
 import sys
 
 class Pair(ctypes.Structure):
-    __fields__ = [('id', ctypes.c_ulong),
-                  ('distance', ctypes.c_float)]
+    _fields_ = [('id', ctypes.c_ulong),
+                ('distance', ctypes.c_float)]
 
 def read_offset(istream):
     return struct.unpack("L", istream)
