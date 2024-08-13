@@ -33,6 +33,7 @@ if __name__ == '__main__':
                 size = int( (end - start) / pair_size)
                 if size == 0:
                     pass
+                print("size: {size}")
                 queue_buf = ifile.read(size)
                 array = struct.iter_unpack("<Lf", queue_buf)
                 result[i] = []
