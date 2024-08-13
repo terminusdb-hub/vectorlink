@@ -17,6 +17,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # 1. First, load match file.
+    input_prefix = args.input_prefix
     input_file = f"{input_prefix}.queues"
     input_index = f"{input_prefix}.index"
 
