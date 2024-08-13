@@ -26,8 +26,8 @@ if __name__ == '__main__':
         ulongs_in_file = min(10, int(len(idx_buf) / 8))
         with open(input_file, 'rb') as i:
             for i in range(0, ulongs_in_file):
-                start = struct.unpack_from("<L", file_buf, i * 8)[0]
-                end = struct.unpack_from("<L", file_buf, (i+1) * 8)[0]
+                start = struct.unpack_from("<L", idx_buf, i * 8)[0]
+                end = struct.unpack_from("<L", idx_buf, (i+1) * 8)[0]
                 size = int( (end - start) / pair_size)
                 queue_buf = i.read(size)
                 array = struct.iter_unpack("<Lf", queue_buf)
