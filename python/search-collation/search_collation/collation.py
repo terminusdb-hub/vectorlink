@@ -1,11 +1,6 @@
-import ctypes
 import struct
 import argparse
 import sys
-
-class Pair(ctypes.Structure):
-    _fields_ = [('id', ctypes.c_ulong),
-                ('distance', ctypes.c_float)]
 
 def read_offset(istream):
     return struct.unpack("L", istream)
@@ -22,7 +17,7 @@ if __name__ == '__main__':
     input_file = f"{input_prefix}.queues"
     input_index = f"{input_prefix}.index"
 
-    pair_size = ctypes.sizeof(Pair)
+    pair_size = struct.calcsize("<Lf")
     # print(f"pair size: {pair_size}")
     # sys.exit(0)
     result = []
@@ -35,8 +30,8 @@ if __name__ == '__main__':
                 start = struct.unpack_from("<L", file_buf, i * 8)[0]
                 end = struct.unpack_from("<L", file_buf, (i+1) * 8)[0]
                 size = int( (end - start) / pair_size)
-                array = (Pair * size).from_buffer(file_buf, start)
-                result.append(array)
+                array = struct.unpack_from("<Lf", file_buf[start:end])
+                result.append(list(array))
 
     print(result)
     # 2. Prescan vectors for loading from the match file
