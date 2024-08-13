@@ -30,7 +30,7 @@ if __name__ == '__main__':
                 start = struct.unpack_from("<L", file_buf, i * 8)[0]
                 end = struct.unpack_from("<L", file_buf, (i+1) * 8)[0]
                 size = int( (end - start) / pair_size)
-                array = struct.unpack_from("<Lf", file_buf[start:end])
+                array = struct.iter_unpack("<Lf", file_buf[start:end])
                 result.append(list(array))
 
     print(result)
