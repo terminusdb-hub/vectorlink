@@ -25,7 +25,7 @@ if __name__ == '__main__':
         idx_buf = idx.read()
         ulongs_in_file = int(len(idx_buf) / 8)
         with open(input_file, 'rb') as ifile:
-            for i in range(0, ulongs_in_file):
+            for i in range(0, ulongs_in_file - 1):
                 start = struct.unpack_from("<L", idx_buf, i * 8)[0]
                 end = struct.unpack_from("<L", idx_buf, (i+1) * 8)[0]
                 size = int( (end - start) / pair_size)
