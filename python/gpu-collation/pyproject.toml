@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "vectorlink-collation"
+version = "0.1.0"
+description = ""
+authors = ["Gavin Mendel-Gleason <gavin@terminusdb.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "^1.26.4"
+torch = "^2.2.2"
+vectorlink-task = {path = "../../vectorlink-task-py"}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+collation-server = "vectorlink_collation.collation_etcd:main"
