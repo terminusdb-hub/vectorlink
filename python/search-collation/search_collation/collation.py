@@ -2,8 +2,8 @@ import ctypes
 import struct
 
 class Pair(struct.Struct):
-    __fields__ = [('id', c_ulong),
-                  ('distance', c_float)]
+    __fields__ = [('id', ctypes.c_ulong),
+                  ('distance', ctypes.c_float)]
 
 def read_offset(istream):
     return struct.unpack("L", istream)
