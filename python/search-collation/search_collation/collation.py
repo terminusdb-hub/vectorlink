@@ -21,7 +21,7 @@ if __name__ == '__main__':
     input_file = f"{input_prefix}.queues"
     input_index = f"{input_prefix}.index"
 
-    pair_size = sizeof(Pair)
+    pair_size = ctypes.sizeof(Pair)
     result = []
     with open(input_index, 'rb') as idx:
         idx_buf = idx.read()
