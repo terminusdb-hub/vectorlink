@@ -17,7 +17,7 @@ if __name__ == '__main__':
 
     # 1. First, load match file.
     input_file = f"{input_file_prefix}.match"
-    input_index = f"{input_file_index).idx"
+    input_index = f"{input_file_index}.idx"
 
     pair_size = sizeof(Pair)
     result = []
