@@ -19,9 +19,9 @@ if __name__ == '__main__':
     input_file = f"{input_prefix}.queues"
     input_index = f"{input_prefix}.index"
 
-    pair_size = struct.calcsize("<Lf")
+    pair_size = struct.calcsize("<Qf")
     print(f"pair size: {pair_size}")
-    ulong_size = struct.calcsize("<L")
+    ulong_size = struct.calcsize("<Q")
     print(f"ulong size: {ulong_size}")
     # sys.exit(0)
     result = {}
@@ -30,15 +30,15 @@ if __name__ == '__main__':
         ulongs_in_file = int(len(idx_buf) / ulong_size)
         with open(input_file, 'rb') as ifile:
             for i in range(0, ulongs_in_file - 1):
-                start = struct.unpack_from("<L", idx_buf, i * ulong_size)[0]
-                end = struct.unpack_from("<L", idx_buf, (i+1) * ulong_size)[0]
+                start = struct.unpack_from("<Q", idx_buf, i * ulong_size)[0]
+                end = struct.unpack_from("<Q", idx_buf, (i+1) * ulong_size)[0]
                 print(f"range: {end}-{start}")
                 size = int( (end - start) / pair_size)
                 if size == 0:
                     pass
                 print(f"size: {size}")
                 queue_buf = ifile.read(size)
-                array = struct.iter_unpack("<Lf", queue_buf)
+                array = struct.iter_unpack("<Qf", queue_buf)
                 result[i] = []
                 for (vid, _) in list(array):
                     result[i].append(vid)
@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     # 3. Preload the vectors into the GPU
     vector_file_size = 128370618368
-    f32_size = struct.calcsize("<Lf")
+    f32_size = struct.calcsize("<f")
     vector_size = 1024 * f32_size # dimension * f32
     vector_file_count = vector_file_size / vector_size
 
