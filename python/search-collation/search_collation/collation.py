@@ -37,7 +37,7 @@ if __name__ == '__main__':
                 if size == 0:
                     continue
                 queue_buf = ifile.read(size)
-                if len(queue_buf) % size != 0:
+                if len(queue_buf) % pair_size != 0:
                     print(f"queue_buf length: {len(queue_buf)}, size: {size}")
                 array = struct.iter_unpack("<Qf", queue_buf)
                 result[i] = []
