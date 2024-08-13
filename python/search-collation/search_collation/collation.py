@@ -33,7 +33,7 @@ if __name__ == '__main__':
                 start = struct.unpack_from("<Q", idx_buf, i * ulong_size)[0]
                 end = struct.unpack_from("<Q", idx_buf, (i+1) * ulong_size)[0]
                 print(f"range: {end}-{start}")
-                size = int( (end - start) / pair_size)
+                size = int((end - start))
                 if size == 0:
                     pass
                 print(f"size: {size}")
