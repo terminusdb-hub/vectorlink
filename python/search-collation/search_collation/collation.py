@@ -23,7 +23,7 @@ if __name__ == '__main__':
     result = {}
     with open(input_index, 'rb') as idx:
         idx_buf = idx.read()
-        ulongs_in_file = min(10, int(len(idx_buf) / 8))
+        ulongs_in_file = int(len(idx_buf) / 8)
         with open(input_file, 'rb') as ifile:
             for i in range(0, ulongs_in_file):
                 start = struct.unpack_from("<L", idx_buf, i * 8)[0]
