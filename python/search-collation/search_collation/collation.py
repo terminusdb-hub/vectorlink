@@ -11,9 +11,9 @@ def read_offset(istream):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('input_prefix', help='input match file prefix (before .idx or .match) to interpret')
-    parser.add_argument('output_file', help='output file for reordered match')
-    parser.add_argument('--backend', help='backend to use')
+    parser.add_argument('input_prefix', help='input match file prefix (before .idx or .match) to interpret', required=True)
+    parser.add_argument('output_file', help='output file for reordered match', required=True)
+
     args = parser.parse_args()
 
     # 1. First, load match file.
