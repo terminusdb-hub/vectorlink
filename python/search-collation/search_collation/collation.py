@@ -21,15 +21,17 @@ if __name__ == '__main__':
 
     pair_size = struct.calcsize("<Lf")
     print(f"pair size: {pair_size}")
+    ulong_size = struct.calcsize("<L")
+    print(f"ulong size: {ulong_size}")
     # sys.exit(0)
     result = {}
     with open(input_index, 'rb') as idx:
         idx_buf = idx.read()
-        ulongs_in_file = int(len(idx_buf) / 8)
+        ulongs_in_file = int(len(idx_buf) / ulong_size)
         with open(input_file, 'rb') as ifile:
             for i in range(0, ulongs_in_file - 1):
-                start = struct.unpack_from("<L", idx_buf, i * 8)[0]
-                end = struct.unpack_from("<L", idx_buf, (i+1) * 8)[0]
+                start = struct.unpack_from("<L", idx_buf, i * ulong_size)[0]
+                end = struct.unpack_from("<L", idx_buf, (i+1) * ulong_size)[0]
                 print(f"range: {start}-{end}")
                 size = int( (end - start) / pair_size)
                 if size == 0:
@@ -53,7 +55,8 @@ if __name__ == '__main__':
 
     # 3. Preload the vectors into the GPU
     vector_file_size = 128370618368
-    vector_size = 1536 * 4 # dimension * f32
+    f32_size = struct.calcsize("<Lf")
+    vector_size = 1024 * f32_size # dimension * f32
     vector_file_count = vector_file_size / vector_size
 
     file_no = 0
