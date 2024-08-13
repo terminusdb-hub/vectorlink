@@ -35,8 +35,7 @@ if __name__ == '__main__':
                 #print(f"range: {end}-{start}")
                 size = int((end - start))
                 if size == 0:
-                    pass
-                #print(f"size: {size}")
+                    continue
                 queue_buf = ifile.read(size)
                 if len(queue_buf) % size != 0:
                     print(f"queue_buf length: {len(queue_buf)}, size: {size}")
