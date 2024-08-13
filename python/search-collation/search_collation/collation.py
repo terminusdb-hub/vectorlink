@@ -25,7 +25,7 @@ if __name__ == '__main__':
     result = []
     with open(input_index, 'rb') as idx:
         idx_buf = idx.read()
-        ulongs_in_file = len(idx_buf) / 8
+        ulongs_in_file = int(len(idx_buf) / 8)
         with open(input_file, 'rb') as i:
             file_buf = i.read()
             for i in range(0, ulongs_in_file):
