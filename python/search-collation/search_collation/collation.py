@@ -30,6 +30,7 @@ if __name__ == '__main__':
             for i in range(0, ulongs_in_file - 1):
                 start = struct.unpack_from("<L", idx_buf, i * 8)[0]
                 end = struct.unpack_from("<L", idx_buf, (i+1) * 8)[0]
+                print(f"range: {start}-{end}")
                 size = int( (end - start) / pair_size)
                 if size == 0:
                     pass
