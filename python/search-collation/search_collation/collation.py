@@ -12,7 +12,7 @@ def read_offset(istream):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input-prefix', help='input match file prefix (before .idx or .match) to interpret', required=True)
-    parser.add_argument('-o', '--output-file', 'output_file', help='output file for reordered match', required=True)
+    parser.add_argument('-o', '--output-file', help='output file for reordered match', required=True)
 
     args = parser.parse_args()
 
