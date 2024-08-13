@@ -32,11 +32,11 @@ if __name__ == '__main__':
             for i in range(0, ulongs_in_file - 1):
                 start = struct.unpack_from("<Q", idx_buf, i * ulong_size)[0]
                 end = struct.unpack_from("<Q", idx_buf, (i+1) * ulong_size)[0]
-                print(f"range: {end}-{start}")
+                #print(f"range: {end}-{start}")
                 size = int((end - start))
                 if size == 0:
                     pass
-                print(f"size: {size}")
+                #print(f"size: {size}")
                 queue_buf = ifile.read(size)
                 array = struct.iter_unpack("<Qf", queue_buf)
                 result[i] = []
