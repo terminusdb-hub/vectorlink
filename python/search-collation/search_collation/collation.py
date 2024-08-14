@@ -37,9 +37,7 @@ if __name__ == '__main__':
                 if size == 0:
                     continue
                 queue_buf = ifile.read(size)
-                if len(queue_buf) % pair_size != 0:
-                    print(f"queue_buf length: {len(queue_buf)}, size: {size}")
-                # Do I need this for alignment?
+                # Do I need this extra f for alignment?
                 array = struct.iter_unpack("<Qff", queue_buf)
                 result[i] = []
                 for (vid, _, _) in list(array):
@@ -67,9 +65,10 @@ if __name__ == '__main__':
     for i in ids:
         new_file_no = int(i / vector_file_count)
         if new_file_no != file_no:
-            file_no = new_file_no
-            f.close()
-            f = open(f"{directory}/{file_no}.vecs", 'rb')
+            break
+            #file_no = new_file_no
+            #f.close()
+            #f = open(f"{directory}/{file_no}.vecs", 'rb')
         file_offset = i % file_size * file_no
         f.seek(file_offset * vector_size)
         raw_buf = f.read(vector_size)
