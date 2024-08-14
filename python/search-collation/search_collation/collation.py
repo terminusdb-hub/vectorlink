@@ -85,6 +85,7 @@ if __name__ == '__main__':
         f.seek(file_offset * vector_size)
         raw_buf = f.read(vector_size)
         buf += raw_buf
+        break
 
     f.close()
     # 4. Perform match calculations and write the output matches as binary structs
