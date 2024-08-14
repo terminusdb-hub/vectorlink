@@ -94,7 +94,7 @@ if __name__ == '__main__':
     # queue
 
     with torch.device("cuda"):
-        X = torch.frombuffer(buf, dtype=torch.f32)
+        X = torch.frombuffer(buf, dtype=torch.float32)
         X.reshape([len(ids), 1024])
         compiled_cosine = torch.compile(cosine_distance)
         for i in result:
