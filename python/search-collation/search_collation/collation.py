@@ -2,9 +2,16 @@ import struct
 import argparse
 import sys
 import numpy
+import torch
 
-def read_offset(istream):
-    return struct.unpack("L", istream)
+def cosine_distance(X, i, ids):
+    m = torch.index_select(X,ids)
+    v = torch.index_select(X,i)
+    vT = torch.transpose(v)
+    d = torch.matmul(vT, m)
+    m_norms = torch.norm(x, dim=1)
+    v_norm = torch.norm(v, dim=1).item()
+    return d / (m_norms * v_norm)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -61,21 +68,32 @@ if __name__ == '__main__':
 
     file_no = 0
     f = open(f"{directory}/{file_no}.vecs", 'rb')
-    vecs = numpy.array([])
+    buf = r''
     for i in ids:
         new_file_no = int(i / vector_file_count)
         if new_file_no != file_no:
             break
+            # Only comparing against ourselves
             #file_no = new_file_no
             #f.close()
             #f = open(f"{directory}/{file_no}.vecs", 'rb')
         file_offset = i % file_size * file_no
         f.seek(file_offset * vector_size)
         raw_buf = f.read(vector_size)
-        vecs.append(numpy.frombuffer(raw_buf, dtype=float))
+        buf += raw_buf
 
     f.close()
     # 4. Perform match calculations and write the output matches as binary structs
     #
     # The match calculation is a dot product of the match vectors and the candidate
     # queue
+
+    with torch.device("cuda"):
+        X = torch.frombuffer(buf, dtype=torch.f32)
+        compiled_cosine = torch.compile(cosine_distance)
+        for i in result:
+            ids = torch.tensor(result[key])
+            i = torch.tensor([i])
+            results = compiled_cosign(X, i, ids)
+            print(f"ids: {ids} results: {results}")
+
