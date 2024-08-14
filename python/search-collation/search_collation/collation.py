@@ -60,6 +60,10 @@ if __name__ == '__main__':
 
     ids.sort()
 
+    id_map = {}
+    for i in range(0,len(ids)):
+        id_map[ids[i]] = i
+
     # 3. Preload the vectors into the GPU
     vector_file_size = 128370618368
     f32_size = struct.calcsize("<f")
@@ -90,10 +94,12 @@ if __name__ == '__main__':
 
     with torch.device("cuda"):
         X = torch.frombuffer(buf, dtype=torch.f32)
+        X.reshape([len(ids), 1024])
         compiled_cosine = torch.compile(cosine_distance)
         for i in result:
             ids = torch.tensor(result[key])
-            i = torch.tensor([i])
-            results = compiled_cosign(X, i, ids)
-            print(f"ids: {ids} results: {results}")
-
+            offsets = torch.tensor(list(map(lambda i: id_map[i])))
+            v_i = torch.tensor([id_map[i]])
+            results = compiled_cosign(X, v_i, offsets)
+            print(f"i: {i} ids: {ids} results: {results}")
+            break
