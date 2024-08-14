@@ -73,6 +73,7 @@ if __name__ == '__main__':
     file_no = 0
     f = open(f"{args.directory}/{file_no}.vecs", 'rb')
     buf = b''
+    count = 0
     for i in ids:
         new_file_no = int(i / vector_file_count)
         if new_file_no != file_no:
@@ -85,7 +86,9 @@ if __name__ == '__main__':
         f.seek(file_offset * vector_size)
         raw_buf = f.read(vector_size)
         buf += raw_buf
-        break
+        count += 1
+        if count > 10:
+            break
 
     f.close()
     # 4. Perform match calculations and write the output matches as binary structs
@@ -95,7 +98,7 @@ if __name__ == '__main__':
 
     with torch.device("cuda"):
         X = torch.frombuffer(buf, dtype=torch.float32)
-        X.reshape([len(ids), 1024])
+        X.reshape([len(10), 1024]) # X.reshape([len(ids), 1024])
         compiled_cosine = torch.compile(cosine_distance)
         for i in result:
             ids = torch.tensor(result[key])
