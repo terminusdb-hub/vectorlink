@@ -63,8 +63,8 @@ if __name__ == '__main__':
     # 3. Preload the vectors into the GPU
     vector_file_size = 128370618368
     f32_size = struct.calcsize("<f")
-    vector_size = 1024 * f32_size # dimension * f32
-    vector_file_count = vector_file_size / vector_size
+    vector_size = int(1024 * f32_size) # dimension * f32
+    vector_file_count = int(vector_file_size / vector_size)
 
     file_no = 0
     f = open(f"{args.directory}/{file_no}.vecs", 'rb')
