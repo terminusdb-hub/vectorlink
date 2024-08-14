@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
     file_no = 0
     f = open(f"{args.directory}/{file_no}.vecs", 'rb')
-    buf = r''
+    buf = b''
     for i in ids:
         new_file_no = int(i / vector_file_count)
         if new_file_no != file_no:
