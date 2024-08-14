@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     with torch.device("cuda"):
         X = torch.frombuffer(buf, dtype=torch.float32)
-        X.reshape([len(10), 1024]) # X.reshape([len(ids), 1024])
+        X.reshape([10, 1024]) # X.reshape([len(ids), 1024])
         compiled_cosine = torch.compile(cosine_distance)
         for i in result:
             ids = torch.tensor(result[key])
