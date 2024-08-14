@@ -77,7 +77,7 @@ if __name__ == '__main__':
             #file_no = new_file_no
             #f.close()
             #f = open(f"{directory}/{file_no}.vecs", 'rb')
-        file_offset = i % file_size * file_no
+        file_offset = i % vector_file_count * file_no
         f.seek(file_offset * vector_size)
         raw_buf = f.read(vector_size)
         buf += raw_buf
