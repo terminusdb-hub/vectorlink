@@ -67,7 +67,7 @@ if __name__ == '__main__':
     vector_file_count = vector_file_size / vector_size
 
     file_no = 0
-    f = open(f"{directory}/{file_no}.vecs", 'rb')
+    f = open(f"{args.directory}/{file_no}.vecs", 'rb')
     buf = r''
     for i in ids:
         new_file_no = int(i / vector_file_count)
