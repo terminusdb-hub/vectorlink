@@ -104,7 +104,7 @@ if __name__ == '__main__':
         compiled_cosine = torch.compile(cosine_distance)
         for i in result:
             ids = torch.tensor(result[key])
-            offsets = torch.tensor(list(map(lambda i: id_map[i])))
+            offsets = torch.tensor(list(map(lambda i: id_map[i], ids)))
             v_i = torch.tensor([id_map[i]])
             results = compiled_cosign(X, v_i, offsets)
             print(f"i: {i} ids: {ids} results: {results}")
