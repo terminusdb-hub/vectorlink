@@ -84,7 +84,9 @@ if __name__ == '__main__':
             #f = open(f"{directory}/{file_no}.vecs", 'rb')
         file_offset = i % vector_file_count * file_no
         f.seek(file_offset * vector_size)
+        print(f"vector size: {vector_size}")
         raw_buf = f.read(vector_size)
+        print(f"raw buf length: {len(raw_buf)}")
         buf += raw_buf
         count += 1
         if count > 10:
