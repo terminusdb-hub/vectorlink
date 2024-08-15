@@ -89,7 +89,7 @@ if __name__ == '__main__':
         print(f"raw buf length: {len(raw_buf)}")
         buf += raw_buf
         count += 1
-        if count > 10:
+        if count >= 10:
             break
 
     f.close()
