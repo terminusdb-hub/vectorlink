@@ -89,7 +89,7 @@ if __name__ == '__main__':
     # The match calculation is a dot product of the match vectors and the candidate
     # queue
 
-    torch.device("cuda"):
+    torch.device("cuda")
     import torch._dynamo as dynamo
     torch._dynamo.config.verbose = True
     torch.backends.cudnn.benchmark = True
