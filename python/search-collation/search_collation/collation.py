@@ -90,18 +90,23 @@ if __name__ == '__main__':
     # queue
 
     with torch.device("cuda"):
+        import torch._dynamo as dynamo
+        torch._dynamo.config.verbose = True
+        torch.backends.cudnn.benchmark = True
+
         def cosine_distance(X, i, ids):
             m = torch.index_select(X,0,ids)
+            mT = torch.transpose(m, 0, 1)
             v = torch.index_select(X,0,i)
-            vT = torch.transpose(v)
-            d = torch.matmul(vT, m)
+            d = torch.matmul(v, mT)
             m_norms = torch.norm(x, dim=1)
             v_norm = torch.norm(v, dim=1).item()
-            return d / (m_norms * v_norm)
+            cosine = d / (m_norms * v_norm)
+            return ( (cosine - 1) / -2)
 
         X = torch.frombuffer(buf, dtype=torch.float32)
-        X.reshape([10, 1024]) # X.reshape([len(ids), 1024])
-        compiled_cosine = torch.compile(cosine_distance)
+        X = X.reshape([10, 1024]) # X.reshape([len(ids), 1024])
+        compiled_cosine = torch.compile(cosine_distance, mode="max-autotune", fullgraph=True)
         for i in result:
             ids = result[key]
             I = torch.tensor(list(map(lambda i: id_map[i], ids)))
