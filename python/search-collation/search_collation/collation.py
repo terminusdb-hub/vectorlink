@@ -5,8 +5,8 @@ import numpy
 import torch
 
 def cosine_distance(X, i, ids):
-    m = torch.index_select(X,ids)
-    v = torch.index_select(X,i)
+    m = torch.index_select(X,0,ids)
+    v = torch.index_select(X,0,i)
     vT = torch.transpose(v)
     d = torch.matmul(vT, m)
     m_norms = torch.norm(x, dim=1)
