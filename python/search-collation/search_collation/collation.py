@@ -99,8 +99,8 @@ if __name__ == '__main__':
             mT = torch.transpose(m, 0, 1)
             v = torch.index_select(X,0,i)
             d = torch.matmul(v, mT)
-            m_norms = torch.norm(x, dim=1)
-            v_norm = torch.norm(v, dim=1).item()
+            m_norms = torch.norm(m, dim=1)
+            v_norm = torch.norm(v, dim=1)
             cosine = d / (m_norms * v_norm)
             return ( (cosine - 1) / -2)
 
