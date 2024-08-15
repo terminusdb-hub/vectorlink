@@ -89,28 +89,28 @@ if __name__ == '__main__':
     # The match calculation is a dot product of the match vectors and the candidate
     # queue
 
-    with torch.device("cuda"):
-        import torch._dynamo as dynamo
-        torch._dynamo.config.verbose = True
-        torch.backends.cudnn.benchmark = True
+    torch.device("cuda"):
+    import torch._dynamo as dynamo
+    torch._dynamo.config.verbose = True
+    torch.backends.cudnn.benchmark = True
 
-        def cosine_distance(X, i, ids):
-            m = torch.index_select(X,0,ids)
-            mT = torch.transpose(m, 0, 1)
-            v = torch.index_select(X,0,i)
-            d = torch.matmul(v, mT)
-            m_norms = torch.norm(m, dim=1)
-            v_norm = torch.norm(v, dim=1)
-            cosine = d / (m_norms * v_norm)
-            return ( (cosine - 1) / -2)
+    def cosine_distance(X, i, ids):
+        m = torch.index_select(X,0,ids)
+        mT = torch.transpose(m, 0, 1)
+        v = torch.index_select(X,0,i)
+        d = torch.matmul(v, mT)
+        m_norms = torch.norm(m, dim=1)
+        v_norm = torch.norm(v, dim=1)
+        cosine = d / (m_norms * v_norm)
+        return ( (cosine - 1) / -2)
 
-        X = torch.frombuffer(buf, dtype=torch.float32)
-        X = X.reshape([10, 1024]) # X.reshape([len(ids), 1024])
-        compiled_cosine = torch.compile(cosine_distance, mode="max-autotune", fullgraph=True)
-        for i in result:
-            ids = result[key]
-            I = torch.tensor(list(map(lambda i: id_map[i], ids)))
-            v_i = torch.tensor([id_map[i]])
-            results = compiled_cosine(X, v_i, I)
-            print(f"i: {i} ids: {ids} results: {results}")
-            break
+    X = torch.frombuffer(buf, dtype=torch.float32)
+    X = X.reshape([10, 1024]) # X.reshape([len(ids), 1024])
+    compiled_cosine = torch.compile(cosine_distance, mode="max-autotune", fullgraph=True)
+    for i in result:
+        ids = result[key]
+        I = torch.tensor(list(map(lambda i: id_map[i], ids)))
+        v_i = torch.tensor([id_map[i]])
+        results = compiled_cosine(X, v_i, I)
+        print(f"i: {i} ids: {ids} results: {results}")
+        break
