@@ -4,15 +4,6 @@ import sys
 import numpy
 import torch
 
-def cosine_distance(X, i, ids):
-    m = torch.index_select(X,0,ids)
-    v = torch.index_select(X,0,i)
-    vT = torch.transpose(v)
-    d = torch.matmul(vT, m)
-    m_norms = torch.norm(x, dim=1)
-    v_norm = torch.norm(v, dim=1).item()
-    return d / (m_norms * v_norm)
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input-prefix', help='input match file prefix (before .idx or .match) to interpret', required=True)
@@ -99,6 +90,15 @@ if __name__ == '__main__':
     # queue
 
     with torch.device("cuda"):
+        def cosine_distance(X, i, ids):
+            m = torch.index_select(X,0,ids)
+            v = torch.index_select(X,0,i)
+            vT = torch.transpose(v)
+            d = torch.matmul(vT, m)
+            m_norms = torch.norm(x, dim=1)
+            v_norm = torch.norm(v, dim=1).item()
+            return d / (m_norms * v_norm)
+
         X = torch.frombuffer(buf, dtype=torch.float32)
         X.reshape([10, 1024]) # X.reshape([len(ids), 1024])
         compiled_cosine = torch.compile(cosine_distance)
