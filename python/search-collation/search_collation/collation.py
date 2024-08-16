@@ -67,7 +67,8 @@ if __name__ == '__main__':
         x = open(args.index, 'rb')
         offsets = x.read()
 
-        writer = csv.writer(args.output_file)
+        o = open(args.output_file, 'w')
+        writer = csv.writer(o)
         for i in result:
             (i_start, i_end) = get_offsets(data, i)
             i_json = json.loads(data[i_start:i_end])
