@@ -8,8 +8,8 @@ import json
 
 def get_offsets(data, i):
     position = i * 8
-    start = struct.unpack_from('<Q', data, position)
-    end = struct.unpack_from('<Q', data, position + 8)
+    start = struct.unpack_from('<Q', data, position)[0]
+    end = struct.unpack_from('<Q', data, position + 8)[0]
     return (start, end)
 
 if __name__ == '__main__':
