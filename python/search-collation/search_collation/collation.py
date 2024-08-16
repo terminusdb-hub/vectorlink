@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output-file', help='output file for reordered match', required=True)
     parser.add_argument('-d', '--directory', help='vector files directory', required=True)
     parser.add_argument('-f', '--full', help='use full vector distances', action='store_true', default=False)
-    parser.add_argument('-t', '--threshold', help='threshold value to use to chop distance')
+    parser.add_argument('-t', '--threshold', help='threshold value to use to chop distance', type=int)
     parser.add_argument('-r', '--report-type', help='the type of report (one of: csv, binary)', choices=['csv', 'binary'], default='csv')
     parser.add_argument('-l', '--lines', help='lines file with the actual data', required=True)
     parser.add_argument('-x', '--index', help='lines index file', required=True)
