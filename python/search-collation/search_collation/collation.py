@@ -72,6 +72,7 @@ if __name__ == '__main__':
         writer = csv.writer(o)
         for i in result:
             (i_start, i_end) = get_offsets(data, i)
+            print(f"i start: {i_start} i_end: {i_end}")
             i_json = json.loads(data[i_start:i_end])
             i_dfi = i_json['DATAFILE_ID']
             i_ri = i_json['ROW_ID']
