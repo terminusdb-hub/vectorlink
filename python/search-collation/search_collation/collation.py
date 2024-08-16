@@ -71,13 +71,13 @@ if __name__ == '__main__':
         o = open(args.output_file, 'w')
         writer = csv.writer(o)
         for i in result:
-            (i_start, i_end) = get_offsets(data, i)
+            (i_start, i_end) = get_offsets(offsets, i)
             print(f"i start: {i_start} i_end: {i_end}")
             i_json = json.loads(data[i_start:i_end])
             i_dfi = i_json['DATAFILE_ID']
             i_ri = i_json['ROW_ID']
             for j in result[i]:
-                (j_start, j_end) = get_offsets(data, j)
+                (j_start, j_end) = get_offsets(offsets, j)
                 j_json = json.loads(data[j_start:j_end])
                 j_dfi = j_json['DATAFILE_ID']
                 j_ri = j_json['ROW_ID']
