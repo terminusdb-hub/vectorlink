@@ -55,8 +55,8 @@ if __name__ == '__main__':
                 array = struct.iter_unpack("<Qff", queue_buf)
                 result[i] = []
                 for (vid, distance, _) in list(array):
-                    print(f"distance: {distance}")
                     if distance < threshold:
+                        print(f"distance: {distance}")
                         result[i].append(vid)
 
     if not args.full:
