@@ -3,16 +3,32 @@ import argparse
 import sys
 import numpy
 import torch
+import csv
+
+def get_offsets(data, i):
+    position = i * 8
+    start = struct.unpack_from('<Q', data, position)
+    end = struct.unpack_from('<Q', data, position + 8)
+    return (start, end)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input-prefix', help='input match file prefix (before .idx or .match) to interpret', required=True)
     parser.add_argument('-o', '--output-file', help='output file for reordered match', required=True)
     parser.add_argument('-d', '--directory', help='vector files directory', required=True)
+    parser.add_argument('-f', '--full', help='use full vector distances', action='store_true', default=False)
+    parser.add_argument('-t', '--threshold', help='threshold value to use to chop distance')
+    parser.add_argument('-r', '--report-type', help='the type of report (one of: csv, binary)', choices=['csv', 'binary'], default='csv')
+    parser.add_argument('-l', '--lines', help='lines file with the actual data', required=True)
+    parser.add_argument('-x', '--index', help='lines index file', required=True)
     args = parser.parse_args()
 
-    # 1. First, load match file.
 
+    threshold = float('inf')
+    if args.threshold:
+        threshold = args.threshold
+
+    # 1. First, load match file.
     input_prefix = args.input_prefix
     input_file = f"{input_prefix}.queues"
     input_index = f"{input_prefix}.index"
@@ -38,8 +54,35 @@ if __name__ == '__main__':
                 # Do I need this extra f for alignment?
                 array = struct.iter_unpack("<Qff", queue_buf)
                 result[i] = []
-                for (vid, _, _) in list(array):
-                    result[i].append(vid)
+                for (vid, distance, _) in list(array):
+                    print(f"distance: {distance}")
+                    sys.exit(0)
+                    if distance < threshold:
+                        result[i].append(vid)
+
+    if not args.full:
+        # 2. Alternative branch: we do not need to reorder and can directly output the appropriate matches
+        # to get real row_id file_id we need to load the whole thing into memory
+        f = open(args.lines, 'rb')
+        data = f.read()
+        x = open(args.index, 'rb')
+        offsets = x.read()
+
+        writer = csv.writer(args.output_file)
+        for i in result:
+            (i_start, i_end) = get_offsets(data, i)
+            i_json = json.loads(data[i_start:i_end])
+            i_dfi = i_json['DATAFILE_ID']
+            i_ri = i_json['ROW_ID']
+            for j in result[i]:
+                (j_start, j_end) = get_offsets(data, j)
+                j_json = json.loads(data[j_start:j_end])
+                j_dfi = j_json['DATAFILE_ID']
+                j_ri = j_json['ROW_ID']
+
+                writer.writerow([i_dfi,i_ri,j_dfi,j_ri])
+        sys.exit(0)
+
 
     # 2. Prescan vectors for loading from the match file
     #    * requires offset calculation for match vector (but not for 0)
