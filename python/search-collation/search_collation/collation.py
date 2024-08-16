@@ -56,7 +56,7 @@ if __name__ == '__main__':
                 result[i] = []
                 for (vid, distance, _) in list(array):
                     if distance < threshold:
-                        print(f"distance: {distance}")
+                        #print(f"distance: {distance}")
                         result[i].append(vid)
 
     if not args.full:
