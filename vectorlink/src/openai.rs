@@ -97,7 +97,7 @@ pub enum EmbeddingError {
     IncompleteBody,
 
     #[error("error while parsing json: {0:?}")]
-    BadJson(#[from] serde_json::Error),
+    BadJson(serde_json::Error, String),
 }
 
 lazy_static! {
@@ -291,7 +291,13 @@ pub async fn embeddings_for(
                 continue;
             }
         }
-        response = serde_json::from_slice(&response_bytes)?;
+        match serde_json::from_slice(&response_bytes) {
+            Ok(r) => response = r,
+            Err(e) => {
+                let body = String::from_utf8_lossy(&response_bytes).to_string();
+                return Err(EmbeddingError::BadJson(e, body));
+            }
+        }
         break;
     }
     let mut result = Vec::with_capacity(strings.len());
