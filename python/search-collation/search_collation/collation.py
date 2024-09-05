@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output-file', help='output file for reordered match', required=True)
     parser.add_argument('-d', '--directory', help='vector files directory', required=True)
     parser.add_argument('-f', '--full', help='use full vector distances', action='store_true', default=False)
-    parser.add_argument('-t', '--threshold', help='threshold value to use to chop distance', type=float)
+    parser.add_argument('-t', '--threshold', help='threshold value to use to chop distance', type=float, default=1.0)
     parser.add_argument('-r', '--report-type', help='the type of report (one of: csv, binary)', choices=['csv', 'binary'], default='csv')
     parser.add_argument('-l', '--lines', help='lines file with the actual data', required=True)
     parser.add_argument('-x', '--index', help='lines index file', required=True)
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     ulong_size = struct.calcsize("<Q")
     print(f"ulong size: {ulong_size}")
     # sys.exit(0)
-    result = {}
+    queue_ids = {}
     with open(input_index, 'rb') as idx:
         idx_buf = idx.read()
         ulongs_in_file = int(len(idx_buf) / ulong_size)
@@ -54,11 +54,11 @@ if __name__ == '__main__':
                 queue_buf = ifile.read(size)
                 # Do I need this extra f for alignment?
                 array = struct.iter_unpack("<Qff", queue_buf)
-                result[i] = []
-                for (vid, distance, _) in list(array):
+                queue_ids[i] = []
+                for (vid, distance, _padding) in list(array):
                     if distance < threshold:
-                        #print(f"distance: {distance}")
-                        result[i].append(vid)
+                        #print(f"distance?: {distance}")
+                        queue_ids[i].append(vid)
 
     if not args.full:
         # 2. Alternative branch: we do not need to reorder and can directly output the appropriate matches
@@ -89,12 +89,12 @@ if __name__ == '__main__':
     # 2. Prescan vectors for loading from the match file
     #    * requires offset calculation for match vector (but not for 0)
     ids = []
-    for key in result:
+    for key in queue_ids:
         ids.append(key)
-        for i in result[key]:
+        for i in queue_ids[key]:
             ids.append(i)
 
-    ids.sort()
+    ids = sorted(set(ids))
 
     id_map = {}
     for i in range(0,len(ids)):
@@ -120,15 +120,17 @@ if __name__ == '__main__':
             #f = open(f"{directory}/{file_no}.vecs", 'rb')
         file_offset = i % vector_file_count * file_no
         f.seek(file_offset * vector_size)
-        print(f"vector size: {vector_size}")
         raw_buf = f.read(vector_size)
-        print(f"raw buf length: {len(raw_buf)}")
         buf += raw_buf
         count += 1
-        if count >= 10:
-            break
+        #if count >= 10:
+        #    break
 
     f.close()
+    tmp = open("/home/ubuntu/raw",'wb')
+    tmp.write(buf)
+    tmp.close()
+    
     # 4. Perform match calculations and write the output matches as binary structs
     #
     # The match calculation is a dot product of the match vectors and the candidate
@@ -150,12 +152,20 @@ if __name__ == '__main__':
         return ( (cosine - 1) / -2)
 
     X = torch.frombuffer(buf, dtype=torch.float32)
-    X = X.reshape([10, 1024]) # X.reshape([len(ids), 1024])
+    X = X.reshape([len(ids), 1024])
     compiled_cosine = torch.compile(cosine_distance, mode="max-autotune", fullgraph=True)
-    for i in result:
-        ids = result[key]
+
+    # output file setup
+    o = open(args.output_file, 'wb')
+
+    obuf = b''
+    for i in queue_ids:
+        ids = queue_ids[i]
         I = torch.tensor(list(map(lambda i: id_map[i], ids)))
         v_i = torch.tensor([id_map[i]])
         results = compiled_cosine(X, v_i, I)
-        print(f"i: {i} ids: {ids} results: {results}")
-        break
+        pairs = list(zip(queue_ids[i],results.numpy()[0]))
+        for pair in pairs:
+            obuf += struct.pack("<Qff", pair[0], pair[1], 0.0)
+
+    o.write(obuf)
