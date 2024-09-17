@@ -389,6 +389,17 @@ impl HnswConfiguration {
             HnswConfiguration::Quantized1024By16(_, q) => q.build_parameters_for_improve_index(),
         }
     }
+
+    pub fn vector_size(&self) -> usize {
+        match self {
+            HnswConfiguration::QuantizedOpenAi(_, _)
+            | HnswConfiguration::SmallQuantizedOpenAi(_, _)
+            | HnswConfiguration::SmallQuantizedOpenAi8(_, _)
+            | HnswConfiguration::SmallQuantizedOpenAi4(_, _)
+            | HnswConfiguration::UnquantizedOpenAi(_, _) => 1536,
+            HnswConfiguration::Quantized1024By16(_, _) => 1024,
+        }
+    }
 }
 
 impl Serializable for HnswConfiguration {

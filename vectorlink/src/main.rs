@@ -837,38 +837,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, 1234);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
-            const VECTOR_COUNT: usize = 1024;
-            let mut vector: [f32; VECTOR_COUNT] = [0.0; 1024];
+            let vector_size = hnsw.vector_size();
+            let mut vector = vec![0.0; vector_size];
 
             let abstract_vector = if let Some(vid) = vid {
-                let hnsw = match &hnsw {
-                    HnswConfiguration::Quantized1024By16(_, q) => q,
+                match &hnsw {
+                    HnswConfiguration::Quantized1024By16(_, q) => {
+                        let fc: Disk1024Comparator = q.full_comparator().clone();
+                        let vec = fc.lookup(VectorId(vid));
+                        vector[0..vector_size].clone_from_slice(&*vec);
+                        AbstractVector::Unstored(&vector)
+                    }
+                    HnswConfiguration::UnquantizedOpenAi(_, h) => {
+                        let c = h.comparator();
+                        let vec = c.lookup(VectorId(vid));
+                        vector[0..vector_size].clone_from_slice(&*vec);
+                        AbstractVector::Unstored(&vector)
+                    }
                     _ => panic!("oops"),
-                };
-                let fc: Disk1024Comparator = hnsw.full_comparator().clone();
-                let vec = fc.lookup(VectorId(vid));
-                vector[0..VECTOR_COUNT].clone_from_slice(&*vec);
-                AbstractVector::Unstored(&vector)
+                }
             } else {
                 let mut stdin = std::io::stdin();
-                const VECTOR_BYTE_COUNT: usize = std::mem::size_of::<f32>() * VECTOR_COUNT;
+                let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
                 let mut buf: [u8; VECTOR_BYTE_COUNT] = [0; VECTOR_BYTE_COUNT];
                 stdin.read_exact(&mut buf).unwrap();
-                let slice =
-                    unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const f32, VECTOR_COUNT) };
-                vector[0..VECTOR_COUNT].clone_from_slice(slice);
+                let slice = unsafe {
+                    std::slice::from_raw_parts(buf.as_ptr() as *const f32, vector_byte_size)
+                };
+                vector[0..vector_byte_size].clone_from_slice(slice);
                 AbstractVector::Unstored(&vector)
             };
             let mut sp = SearchParameters::default();
             sp.number_of_candidates = 300;
-            let results: Vec<MatchResult> = hnsw
-                .search_1024(abstract_vector, sp)
-                .into_iter()
-                .map(|x| MatchResult {
-                    id: x.0 .0.to_string(),
-                    distance: x.1,
-                })
-                .collect();
+            let results: Vec<MatchResult> = match vector_size {
+                1024 => {
+                    let vec: AbstractVector<[f32; 1024]> = abstract_vector.convert_to_array();
+                    hnsw.search_1024(vec, sp)
+                        .into_iter()
+                        .map(|x| MatchResult {
+                            id: x.0 .0.to_string(),
+                            distance: x.1,
+                        })
+                        .collect()
+                }
+                1536 => {
+                    let vec: AbstractVector<[f32; 1536]> = abstract_vector.convert_to_array();
+                    hnsw.search(vec, sp)
+                        .into_iter()
+                        .map(|x| MatchResult {
+                            id: x.0 .0.to_string(),
+                            distance: x.1,
+                        })
+                        .collect()
+                }
+                _ => panic!("unsupported size"),
+            };
 
             let stdout = std::io::stdout();
             let json = serde_json::to_string(&results).unwrap();
@@ -1052,7 +1075,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 output_vec_file.flush().unwrap();
             }
         }
-    }
+    };
 
     Ok(())
 }
