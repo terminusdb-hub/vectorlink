@@ -11,6 +11,7 @@ use parallel_hnsw::{
     keepalive,
     parameters::{BuildParameters, PqBuildParameters},
     pq::HnswQuantizer,
+    progress::SimpleProgressMonitor,
     Serializable,
 };
 use parallel_hnsw::{pq::QuantizedHnsw, progress::ProgressMonitor, SerializationError};
@@ -391,7 +392,18 @@ fn perform_indexing(
                 );
                 HnswConfiguration::SmallQuantizedOpenAi(model, quantized_hnsw)
             } else {
-                panic!("No unquantized 1024 available");
+                let comparator = OpenAIComparator::new(
+                    domain_obj.name().to_owned(),
+                    Arc::new(domain_obj.all_vecs()?),
+                );
+                let vids: Vec<_> = (0..domain_obj.num_vecs()).map(VectorId).collect();
+                let hnsw = Hnsw::generate(
+                    comparator,
+                    vids,
+                    BuildParameters::default(),
+                    &mut SimpleProgressMonitor::default(),
+                );
+                HnswConfiguration::UnquantizedOpenAi(model, hnsw)
             };
             eprintln!("done generating hnsw");
             keepalive!(progress, hnsw.serialize(&staging_file))?;
