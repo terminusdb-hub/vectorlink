@@ -139,17 +139,20 @@ impl VectorFile {
 
     pub fn append_vector_file(&mut self, file: &VectorFile) -> io::Result<usize> {
         assert_eq!(self.vector_byte_size, file.vector_byte_size);
+        eprintln!("appending vector file");
         let mut read_offset = 0;
         let mut write_offset = (self.num_vecs * self.vector_byte_size) as u64;
 
         let num_vecs_to_write = file.num_vecs;
         let mut num_bytes_to_write = num_vecs_to_write * self.vector_byte_size;
 
-        let mut buf = vec![0_u8; 4096];
+        let mut buf = vec![0_u8; self.vector_byte_size];
         while num_bytes_to_write != 0 {
             let n = file.file.read_at(&mut buf, read_offset)?;
+            eprintln!("read {n} bytes");
             self.file.write_all_at(&buf[..n], write_offset)?;
             num_bytes_to_write -= n;
+            eprintln!("wrote vec, {num_bytes_to_write} remaining");
             read_offset += n as u64;
             write_offset += n as u64;
         }
