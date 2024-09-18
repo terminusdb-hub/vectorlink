@@ -837,6 +837,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, 1234);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
+            eprintln!("we deserialized an hnsw");
             let vector_size = hnsw.vector_size();
             let mut vector = vec![0.0; vector_size];
 
