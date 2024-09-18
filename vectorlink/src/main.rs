@@ -859,7 +859,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             } else {
                 let mut stdin = std::io::stdin();
                 let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
-                let mut buf: [u8; VECTOR_BYTE_COUNT] = [0; VECTOR_BYTE_COUNT];
+                let mut buf = vec![0_u8; vector_byte_size];
                 stdin.read_exact(&mut buf).unwrap();
                 let slice = unsafe {
                     std::slice::from_raw_parts(buf.as_ptr() as *const f32, vector_byte_size)
