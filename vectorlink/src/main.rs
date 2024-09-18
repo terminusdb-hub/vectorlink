@@ -860,7 +860,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let vector_size = hnsw.vector_size();
             let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
             eprintln!("got vector size {vector_size}");
-            let mut vector = vec![0.0; vector_byte_size];
+            let mut vector = vec![0.0_f32; vector_size];
 
             let abstract_vector = if let Some(vid) = vid {
                 match &hnsw {
@@ -884,10 +884,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 eprintln!("reading {vector_byte_size} bytes");
                 let mut buf = vec![0_u8; vector_byte_size];
                 stdin.read_exact(&mut buf).unwrap();
-                let slice = unsafe {
-                    std::slice::from_raw_parts(buf.as_ptr() as *const f32, vector_byte_size)
-                };
-                vector[0..vector_byte_size].clone_from_slice(slice);
+                let slice =
+                    unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const f32, vector_size) };
+                vector[0..vector_size].clone_from_slice(slice);
                 AbstractVector::Unstored(&vector)
             };
             let mut sp = SearchParameters::default();
