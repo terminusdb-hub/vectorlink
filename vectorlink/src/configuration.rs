@@ -448,7 +448,6 @@ impl Serializable for HnswConfiguration {
                 QuantizedHnsw::deserialize(path, params)?,
             ),
             HnswConfigurationType::UnquantizedOpenAi => {
-                eprintln!("deserializing unquantized openai");
                 HnswConfiguration::UnquantizedOpenAi(state.model, Hnsw::deserialize(path, params)?)
             }
             HnswConfigurationType::SmallQuantizedOpenAi => HnswConfiguration::SmallQuantizedOpenAi(

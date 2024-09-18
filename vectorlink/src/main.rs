@@ -394,7 +394,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 let buf = unsafe {
                     std::slice::from_raw_parts(ptr, v.len() * std::mem::size_of::<[f32; 1536]>())
                 };
-                eprintln!("going to write {} bytes", buf.len());
                 let mut stdout = stdout();
                 stdout.write_all(buf).unwrap();
                 stdout.flush().unwrap();
@@ -856,10 +855,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             ));
             let store = VectorStore::new(dirpath, 1234);
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
-            eprintln!("we deserialized an hnsw");
             let vector_size = hnsw.vector_size();
             let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
-            eprintln!("got vector size {vector_size}");
             let mut vector = vec![0.0_f32; vector_size];
 
             let abstract_vector = if let Some(vid) = vid {
@@ -871,7 +868,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         AbstractVector::Unstored(&vector)
                     }
                     HnswConfiguration::UnquantizedOpenAi(_, h) => {
-                        eprintln!("looking up vector by id");
                         let c = h.comparator();
                         let vec = c.lookup(VectorId(vid));
                         vector[0..vector_size].clone_from_slice(&*vec);
@@ -881,7 +877,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             } else {
                 let mut stdin = std::io::stdin();
-                eprintln!("reading {vector_byte_size} bytes");
                 let mut buf = vec![0_u8; vector_byte_size];
                 stdin.read_exact(&mut buf).unwrap();
                 let slice =

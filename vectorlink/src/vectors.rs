@@ -43,9 +43,7 @@ impl VectorStore {
     }
 
     pub fn get_domain_sized(&self, name: &str, size: usize) -> io::Result<Arc<Domain>> {
-        eprintln!("about to claim domains lock");
         let domains = self.domains.read().unwrap();
-        eprintln!("claimed domains lock");
         if let Some(domain) = domains.get(name) {
             Ok(domain.clone())
         } else {

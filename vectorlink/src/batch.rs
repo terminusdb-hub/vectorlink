@@ -186,12 +186,9 @@ pub async fn extend_vector_store<P0: AsRef<Path>, P1: AsRef<Path>>(
     size: usize,
     vector_size: usize,
 ) -> Result<usize, io::Error> {
-    eprintln!("extending vector store");
     let vs_path: PathBuf = vectorlink_path.as_ref().into();
     let vs: VectorStore = VectorStore::new(vs_path, size);
-    eprintln!("opened vector store for extending");
     let domain = vs.get_domain_sized(domain, vector_size)?;
-    eprintln!("got domain");
     Ok(domain.concatenate_file(&vec_path)?.0)
 }
 
