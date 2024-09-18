@@ -2,6 +2,7 @@
 #![feature(trait_upcasting)]
 
 use std::fs;
+use std::io::stdout;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Write;
@@ -127,6 +128,8 @@ enum Commands {
         string: String,
         #[arg(short, long, value_enum, default_value_t = Model::Ada2)]
         model: Model,
+        #[arg(short, long)]
+        raw: bool,
     },
     CompareQuantized {
         #[arg(short, long)]
@@ -377,11 +380,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             )
             .await?
         }
-        Commands::Embed { key, string, model } => {
+        Commands::Embed {
+            key,
+            string,
+            model,
+            raw,
+        } => {
             let v: Vec<[f32; 1536]> = openai::embeddings_for(&key_or_env(key), &[string], model)
                 .await?
                 .0;
-            eprintln!("{:?}", v);
+            if raw {
+                let ptr = v.as_ptr() as *const u8;
+                let buf = unsafe {
+                    std::slice::from_raw_parts(ptr, v.len() * std::mem::size_of::<f32>())
+                };
+                let mut stdout = stdout();
+                stdout.write_all(buf).unwrap();
+                stdout.flush().unwrap();
+            } else {
+                eprintln!("{:?}", v);
+            }
         }
         Commands::CompareRaw {} => {
             let mut bufs: [Embedding1024; 2] =
@@ -839,6 +857,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
             eprintln!("we deserialized an hnsw");
             let vector_size = hnsw.vector_size();
+            eprintln!("got vector size {vector_size}");
             let mut vector = vec![0.0; vector_size];
 
             let abstract_vector = if let Some(vid) = vid {
@@ -850,6 +869,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         AbstractVector::Unstored(&vector)
                     }
                     HnswConfiguration::UnquantizedOpenAi(_, h) => {
+                        eprintln!("looking up vector by id");
                         let c = h.comparator();
                         let vec = c.lookup(VectorId(vid));
                         vector[0..vector_size].clone_from_slice(&*vec);
