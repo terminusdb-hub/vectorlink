@@ -392,8 +392,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if raw {
                 let ptr = v.as_ptr() as *const u8;
                 let buf = unsafe {
-                    std::slice::from_raw_parts(ptr, v.len() * std::mem::size_of::<f32>())
+                    std::slice::from_raw_parts(ptr, v.len() * std::mem::size_of::<[f32; 1536]>())
                 };
+                eprintln!("going to write {} bytes", buf.len());
                 let mut stdout = stdout();
                 stdout.write_all(buf).unwrap();
                 stdout.flush().unwrap();
