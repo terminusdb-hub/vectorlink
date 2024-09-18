@@ -858,8 +858,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let hnsw = HnswConfiguration::deserialize(hnsw_index_path, Arc::new(store)).unwrap();
             eprintln!("we deserialized an hnsw");
             let vector_size = hnsw.vector_size();
+            let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
             eprintln!("got vector size {vector_size}");
-            let mut vector = vec![0.0; vector_size];
+            let mut vector = vec![0.0; vector_byte_size];
 
             let abstract_vector = if let Some(vid) = vid {
                 match &hnsw {
@@ -880,7 +881,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             } else {
                 let mut stdin = std::io::stdin();
-                let vector_byte_size = std::mem::size_of::<f32>() * vector_size;
+                eprintln!("reading {vector_byte_size} bytes");
                 let mut buf = vec![0_u8; vector_byte_size];
                 stdin.read_exact(&mut buf).unwrap();
                 let slice = unsafe {
