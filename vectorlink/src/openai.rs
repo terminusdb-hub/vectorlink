@@ -17,7 +17,10 @@ use thiserror::Error;
 use tiktoken_rs::{cl100k_base, CoreBPE};
 use tokio::sync::{Mutex, Notify, RwLock};
 
-use crate::vecmath::Embedding;
+use crate::vecmath::{
+    Embedding, EMBEDDING_BYTE_LENGTH, EMBEDDING_BYTE_LENGTH_1024, EMBEDDING_LENGTH,
+    EMBEDDING_LENGTH_1024,
+};
 
 #[derive(Serialize)]
 struct EmbeddingRequest<'a> {
@@ -94,7 +97,7 @@ pub enum EmbeddingError {
     IncompleteBody,
 
     #[error("error while parsing json: {0:?}")]
-    BadJson(#[from] serde_json::Error),
+    BadJson(serde_json::Error, String),
 }
 
 lazy_static! {
@@ -187,6 +190,7 @@ async fn execute_request_and_get_bytes(
 pub enum Model {
     Ada2,
     Small3,
+    MxBai,
 }
 
 impl Model {
@@ -194,6 +198,14 @@ impl Model {
         match self {
             Self::Ada2 => "text-embedding-ada-002",
             Self::Small3 => "text-embedding-3-small",
+            Self::MxBai => "mxbai",
+        }
+    }
+
+    pub fn size(self) -> usize {
+        match self {
+            Model::Ada2 | Model::Small3 => EMBEDDING_BYTE_LENGTH,
+            Model::MxBai => EMBEDDING_BYTE_LENGTH_1024,
         }
     }
 }
@@ -279,7 +291,13 @@ pub async fn embeddings_for(
                 continue;
             }
         }
-        response = serde_json::from_slice(&response_bytes)?;
+        match serde_json::from_slice(&response_bytes) {
+            Ok(r) => response = r,
+            Err(e) => {
+                let body = String::from_utf8_lossy(&response_bytes).to_string();
+                return Err(EmbeddingError::BadJson(e, body));
+            }
+        }
         break;
     }
     let mut result = Vec::with_capacity(strings.len());

@@ -42,6 +42,21 @@ pub enum AbstractVector<'a, T: ?Sized> {
     Unstored(&'a T),
 }
 
+impl<'a> AbstractVector<'a, Vec<f32>> {
+    pub fn convert_to_array<const N: usize>(&'a self) -> AbstractVector<'a, [f32; N]> {
+        match self {
+            AbstractVector::Stored(id) => AbstractVector::Stored(*id),
+            AbstractVector::Unstored(v) => {
+                assert_eq!(v.len(), N);
+                let slice = &v[..];
+                let ptr = slice.as_ptr();
+                let array_borrow: &[f32; N] = unsafe { (ptr as *const [f32; N]).as_ref().unwrap() };
+                AbstractVector::Unstored(array_borrow)
+            }
+        }
+    }
+}
+
 impl<'a, T: ?Sized> AbstractVector<'a, T> {
     pub fn convert_into<T2>(&self) -> AbstractVector<'a, T2>
     where

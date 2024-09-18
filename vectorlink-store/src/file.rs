@@ -145,7 +145,7 @@ impl VectorFile {
         let num_vecs_to_write = file.num_vecs;
         let mut num_bytes_to_write = num_vecs_to_write * self.vector_byte_size;
 
-        let mut buf = vec![0_u8; 4096];
+        let mut buf = vec![0_u8; self.vector_byte_size];
         while num_bytes_to_write != 0 {
             let n = file.file.read_at(&mut buf, read_offset)?;
             self.file.write_all_at(&buf[..n], write_offset)?;

@@ -42,6 +42,12 @@ pub struct SearchProgress {
 
 pub struct VectorlinkTaskHandler;
 
+#[repr(C)]
+pub struct ResultPair {
+    vectorid: usize,
+    distance: f32,
+}
+
 #[async_trait]
 impl TaskHandler for VectorlinkTaskHandler {
     type Init = SearchRequest;
@@ -149,6 +155,7 @@ impl TaskHandler for VectorlinkTaskHandler {
 
                         for result in results {
                             // And now do something with that result
+                            let result = result.map(|(a,b)| { 
                             let data_len = record_len * result.len();
                             record_offset += data_len;
                             result_index

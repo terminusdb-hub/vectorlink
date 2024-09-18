@@ -56,6 +56,14 @@
             type = "app";
             program = "${p.vectorlink-task-monitor}/bin/task-monitor";
           };
+          collation = {
+            type = "app";
+            program = "${p.search-collation}/bin/search-collation";
+          };
+          collation-server = {
+            type = "app";
+            program = "${p.search-collation}/bin/collation-server";
+          };
           vectorize-server = {
             type = "app";
             program = "${p.vectorlink-vectorize}/bin/vectorize-server";

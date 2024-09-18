@@ -267,6 +267,30 @@ impl DistanceCalculator for EuclideanDistance16For1024 {
 }
 
 #[derive(Default)]
+pub struct CosineDistance16;
+impl DistanceCalculator for CosineDistance16 {
+    type T = Centroid16;
+
+    fn partial_distance(&self, left: &Self::T, right: &Self::T) -> f32 {
+        cosine_partial_distance_16(left, right)
+    }
+
+    fn finalize_partial_distance(&self, distance: f32) -> f32 {
+        distance.sqrt()
+    }
+
+    fn aggregate_partial_distances(&self, distances: &[f32]) -> f32 {
+        assert!(distances.len() == QUANTIZED_16_EMBEDDING_LENGTH);
+        let cast = unsafe { &*(distances.as_ptr() as *const [f32; QUANTIZED_16_EMBEDDING_LENGTH]) };
+        simd::sum_96(cast).sqrt()
+    }
+
+    fn partial_norm(&self, vec: &Self::T) -> f32 {
+        cosine_partial_norm_16(vec)
+    }
+}
+
+#[derive(Default)]
 pub struct CosineDistance16For1024;
 impl DistanceCalculator for CosineDistance16For1024 {
     type T = Centroid16;
